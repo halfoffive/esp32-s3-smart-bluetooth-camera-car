@@ -1,0 +1,181 @@
+// joystick.dart - 自定义虚拟摇杆
+//
+// GestureDetector + CustomPainter 实现：
+//   - 底圆（凹陷区）+ 十字准星 + 拇指圆
+//   - 拇指拖动归一化为 (dx, dy) ∈ [-1, 1]
+//   - dy 上推为正（注意屏幕坐标 y 向下为正，需翻转）
+//   - 释放自动回中并回调 (0, 0)
+
+import 'package:flutter/material.dart';
+import 'theme.dart';
+
+/// 虚拟摇杆。
+///
+/// [onChanged] 在拖动期间持续触发，释放时触发 (0, 0)。
+/// - [dx] 横向偏移，右为正
+/// - [dy] 纵向偏移，前推（上）为正
+class Joystick extends StatefulWidget {
+  const Joystick({super.key, required this.onChanged});
+
+  final void Function(double dx, double dy) onChanged;
+
+  @override
+  State<Joystick> createState() => _JoystickState();
+}
+
+class _JoystickState extends State<Joystick> {
+  /// 拇指圆相对中心的偏移（屏幕坐标，y 向下为正）
+  Offset _thumbOffset = Offset.zero;
+
+  /// 拇指中心距圆心的最大允许距离（layout 时计算）
+  double _maxRadius = 1;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final size = constraints.biggest;
+        final center = Offset(size.width / 2, size.height / 2);
+        // 底圆半径：取较短边的一半减去边距
+        final baseRadius = (size.shortestSide / 2) - 6;
+        // 拇指圆半径
+        final thumbRadius = baseRadius * 0.42;
+        // 拇指中心活动范围 = 底圆半径 - 拇指半径（让拇指圆不超出底圆）
+        _maxRadius = (baseRadius - thumbRadius).clamp(1.0, double.infinity);
+
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onPanStart: (d) => _update(d.localPosition, center),
+          onPanUpdate: (d) => _update(d.localPosition, center),
+          onPanEnd: (_) => _release(),
+          child: CustomPaint(
+            size: size,
+            painter: _JoystickPainter(
+              center: center,
+              thumb: center + _thumbOffset,
+              baseRadius: baseRadius,
+              thumbRadius: thumbRadius,
+              active: _thumbOffset != Offset.zero,
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  /// 根据指针位置更新拇指偏移并回调归一化值。
+  void _update(Offset local, Offset center) {
+    var delta = local - center;
+    final dist = delta.distance;
+    if (dist > _maxRadius) {
+      // 超出范围，钳制到圆周
+      delta = Offset(
+        delta.dx / dist * _maxRadius,
+        delta.dy / dist * _maxRadius,
+      );
+    }
+    setState(() => _thumbOffset = delta);
+    final nx = (delta.dx / _maxRadius).clamp(-1.0, 1.0);
+    // 翻转 y：屏幕向下为正 → 用户前推（向上）应为正
+    final ny = (-delta.dy / _maxRadius).clamp(-1.0, 1.0);
+    widget.onChanged(nx, ny);
+  }
+
+  /// 释放：回中并回调 (0, 0)。
+  void _release() {
+    setState(() => _thumbOffset = Offset.zero);
+    widget.onChanged(0, 0);
+  }
+}
+
+/// 摇杆画笔：底圆 + 十字准星 + 拇指圆。
+class _JoystickPainter extends CustomPainter {
+  _JoystickPainter({
+    required this.center,
+    required this.thumb,
+    required this.baseRadius,
+    required this.thumbRadius,
+    required this.active,
+  });
+
+  final Offset center;
+  final Offset thumb;
+  final double baseRadius;
+  final double thumbRadius;
+  final bool active;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // ---- 底圆填充 ----
+    canvas.drawCircle(
+      center,
+      baseRadius,
+      Paint()..color = AppColors.surfaceVariant,
+    );
+
+    // ---- 底圆边（橙色细环，提示交互区）----
+    canvas.drawCircle(
+      center,
+      baseRadius,
+      Paint()
+        ..color = AppColors.accent.withOpacity(0.35)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.5,
+    );
+
+    // ---- 十字准星 ----
+    final crossPaint = Paint()
+      ..color = AppColors.hudTextDim
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1;
+    final cross = baseRadius * 0.65;
+    canvas.drawLine(
+      Offset(center.dx - cross, center.dy),
+      Offset(center.dx + cross, center.dy),
+      crossPaint,
+    );
+    canvas.drawLine(
+      Offset(center.dx, center.dy - cross),
+      Offset(center.dx, center.dy + cross),
+      crossPaint,
+    );
+
+    // ---- 中心点 ----
+    canvas.drawCircle(
+      center,
+      2,
+      Paint()..color = AppColors.hudTextDim,
+    );
+
+    // ---- 拇指圆阴影 ----
+    canvas.drawCircle(
+      thumb + const Offset(0, 2),
+      thumbRadius,
+      Paint()..color = AppColors.bg.withOpacity(0.5),
+    );
+
+    // ---- 拇指圆主体 ----
+    canvas.drawCircle(
+      thumb,
+      thumbRadius,
+      Paint()..color = active ? AppColors.accent : AppColors.hudText,
+    );
+
+    // ---- 拇指圆内圈高光 ----
+    canvas.drawCircle(
+      thumb,
+      thumbRadius * 0.65,
+      Paint()
+        ..color = AppColors.hudText.withOpacity(0.25)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_JoystickPainter old) =>
+      old.thumb != thumb ||
+      old.active != active ||
+      old.baseRadius != baseRadius ||
+      old.thumbRadius != thumbRadius;
+}
