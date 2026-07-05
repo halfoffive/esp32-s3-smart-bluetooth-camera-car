@@ -10,6 +10,10 @@
 ### Fixed
 - `fix(app): pubspec.yaml 列出的 flutter_rust_bridge_codegen 不是 Dart 包（实为 crates.io 上的 Rust crate），导致 flutter pub get 失败；移除该 dev_dependency，codegen 改由 cargo install 提供（CI 已配置）。`
 - `fix(firmware): motor_task.cpp 迁移至 Arduino-ESP32 v3.x LEDC API（ledcAttach + ledcWrite(pin, duty)），修复 CI 因 ledcSetup/ledcAttachPin/LEDC_CHANNEL_* 在 v3.x 被移除导致的编译失败。`
+- `fix(app): 修正 ble_controller.dart 中 flutter_reactive_ble subscribeToCharacteristic 的订阅类型（Stream<List<int>>），移除已废弃的 CharacteristicValue 提取辅助函数。`
+- `fix(app): 在 keyboard_controller.dart 导入 KeyEventResult，并移除 main.dart 中未使用的 ble_controller 导入。`
+- `fix(app): 将 UI 文件中弃用的 Color.withOpacity 替换为 Color.withValues(alpha: ...)。`
+- `fix(app/rust): 为 flutter_rust_bridge 生成绑定补充 ImageAssembler 构造器与 encode_control 重导出，并适配 Dart 调用方使用命名参数。`
 
 ## [0.1.0] - 2026-07-04
 ### Added
