@@ -1,0 +1,3 @@
+rust_input: crate::api,crate::ble,crate::control,crate::telemetry
+rust_root: rust/
+dart_output: lib/src/rust
