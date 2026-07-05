@@ -146,7 +146,7 @@ jobs:
         if: matrix.flutter_target == 'apk'
         working-directory: app
         shell: bash
-        run: ls -la android/app/build.gradle android/build.gradle
+        run: ls -la android/app/build.gradle* android/build.gradle*
 
       # 10. patch Android compileSdk 至 35（仅 Android 构建需要）：flutter_reactive_ble 依赖 AndroidX 1.7.x
       #      要求 compileSdk ≥ 34；android/ 由 flutter create 生成、不在版本控制中，须在 CI 内 patch
@@ -155,10 +155,28 @@ jobs:
         working-directory: app
         shell: bash
         run: |
-          test -f android/app/build.gradle || { echo "ERROR: android/app/build.gradle not found"; exit 1; }
-          sed -i 's/compileSdk = [0-9]*/compileSdk = 35/' android/app/build.gradle
-          # 在根 build.gradle 注入 subprojects 块，强制所有插件模块（含 reactive_ble_mobile）compileSdk 35
-          cat >> android/build.gradle <<'EOF'
+          # 自动检测 app/build.gradle 或 app/build.gradle.kts
+          if [ -f android/app/build.gradle ]; then
+            APP_GRADLE=android/app/build.gradle
+          elif [ -f android/app/build.gradle.kts ]; then
+            APP_GRADLE=android/app/build.gradle.kts
+          else
+            echo "ERROR: no build.gradle or build.gradle.kts found in android/app/"
+            exit 1
+          fi
+          # 自动检测根 build.gradle 或 build.gradle.kts
+          if [ -f android/build.gradle ]; then
+            ROOT_GRADLE=android/build.gradle
+          elif [ -f android/build.gradle.kts ]; then
+            ROOT_GRADLE=android/build.gradle.kts
+          else
+            echo "ERROR: no build.gradle or build.gradle.kts found in android/"
+            exit 1
+          fi
+          echo "Patching $APP_GRADLE and $ROOT_GRADLE"
+          sed -i 's/compileSdk = [0-9]*/compileSdk = 35/' "$APP_GRADLE"
+          # 在根 build 文件注入 subprojects 块，强制所有插件模块（含 reactive_ble_mobile）compileSdk 35
+          cat >> "$ROOT_GRADLE" <<'EOF'
 
           subprojects {
               afterEvaluate { project ->
