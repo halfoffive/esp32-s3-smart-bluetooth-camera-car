@@ -85,3 +85,6 @@ secrets/
 node_modules/
 # 测试覆盖率报告
 coverage/
+
+# Oh My Open Agent
+.omo/
