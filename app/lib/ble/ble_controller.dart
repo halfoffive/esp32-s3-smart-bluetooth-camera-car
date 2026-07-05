@@ -123,8 +123,8 @@ class BleController extends StateNotifier<BleState> {
   // ---- 流订阅 ----
   StreamSubscription<DiscoveredDevice>? _scanSub;
   StreamSubscription<ConnectionStateUpdate>? _connSub;
-  StreamSubscription<CharacteristicValue>? _imageSub;
-  StreamSubscription<CharacteristicValue>? _telemetrySub;
+  StreamSubscription<List<int>>? _imageSub;
+  StreamSubscription<List<int>>? _telemetrySub;
 
   // ---- 重连状态 ----
   bool _userDisconnect = false; // 用户主动断开标志
@@ -278,18 +278,12 @@ class BleController extends StateNotifier<BleState> {
         CarDeviceConstants.telemetryCharacteristicUuid,
       );
 
-      _imageSub = _ble.subscribeToCharacteristic(imageChar).listen((event) {
-        final bytes = _extractBytes(event);
-        if (bytes != null) {
-          _frameAssembler.handlePacket(Uint8List.fromList(bytes));
-        }
+      _imageSub = _ble.subscribeToCharacteristic(imageChar).listen((bytes) {
+        _frameAssembler.handlePacket(Uint8List.fromList(bytes));
       });
       _telemetrySub =
-          _ble.subscribeToCharacteristic(telemetryChar).listen((event) {
-        final bytes = _extractBytes(event);
-        if (bytes != null) {
-          _telemetryParser.handlePacket(Uint8List.fromList(bytes));
-        }
+          _ble.subscribeToCharacteristic(telemetryChar).listen((bytes) {
+        _telemetryParser.handlePacket(Uint8List.fromList(bytes));
       });
 
       // 3) 写入控制特征占位（零速停机），确认 WRITE 通道可用
@@ -386,8 +380,11 @@ class BleController extends StateNotifier<BleState> {
 
     try {
       // Rust 纯函数编码（control.rs::encode_control）
-      final packet =
-          await control_rust.encodeControl(direction, turn, speedPct);
+      final packet = await control_rust.encodeControl(
+        direction: direction,
+        turn: turn,
+        speedPct: speedPct,
+      );
 
       final char = _qualifiedChar(
         deviceId,
@@ -410,17 +407,6 @@ class BleController extends StateNotifier<BleState> {
       deviceId: deviceId,
       serviceId: Uuid.parse(CarDeviceConstants.serviceUuid),
       characteristicId: Uuid.parse(charUuid),
-    );
-  }
-
-  /// 从 [CharacteristicValue] 提取成功时的字节。
-  ///
-  /// flutter_reactive_ble v5: result 为 [Result<List<int>, GenericFailure>]，
-  /// 用 [Result.iif] 分支取值——成功返回字节，失败返回 null（忽略错误）。
-  List<int>? _extractBytes(CharacteristicValue event) {
-    return event.result.iif<List<int>?>(
-      success: (data) => data,
-      failure: (_) => null,
     );
   }
 
