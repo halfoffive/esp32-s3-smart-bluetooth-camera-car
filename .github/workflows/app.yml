@@ -57,6 +57,25 @@ jobs:
       - name: Bootstrap Flutter platforms
         run: cd app && flutter create . --platforms=android,linux,windows,macos --org com.smartcar --project-name smart_car_remote
 
+      # 7.5. patch Android compileSdk 至 35：flutter_reactive_ble 依赖 AndroidX 1.7.x
+      #      要求 compileSdk ≥ 34；android/ 由 flutter create 生成、不在版本控制中，须在 CI 内 patch
+      - name: Patch Android compileSdk
+        run: |
+          sed -i 's/compileSdk = [0-9]*/compileSdk = 35/' app/android/app/build.gradle
+          # 在根 build.gradle 注入 subprojects 块，强制所有插件模块（含 reactive_ble_mobile）compileSdk 35
+          cat >> app/android/build.gradle <<'EOF'
+
+          subprojects {
+              afterEvaluate { project ->
+                  if (project.hasProperty("android")) {
+                      project.android {
+                          compileSdk 35
+                      }
+                  }
+              }
+          }
+          EOF
+
       # 7. 生成 Rust ↔ Dart 绑定代码（产出 frb_generated.rs）
       - name: Generate flutter_rust_bridge bindings
         run: cd app && flutter_rust_bridge_codegen generate
@@ -119,6 +138,25 @@ jobs:
       # 6. 补全 Flutter 平台原生目录（已存在则无副作用，不覆盖 lib/ 与 pubspec.yaml）
       - name: Bootstrap Flutter platforms
         run: cd app && flutter create . --platforms=android,linux,windows,macos --org com.smartcar --project-name smart_car_remote
+
+      # 7.5. patch Android compileSdk 至 35：flutter_reactive_ble 依赖 AndroidX 1.7.x
+      #      要求 compileSdk ≥ 34；android/ 由 flutter create 生成、不在版本控制中，须在 CI 内 patch
+      - name: Patch Android compileSdk
+        run: |
+          sed -i 's/compileSdk = [0-9]*/compileSdk = 35/' app/android/app/build.gradle
+          # 在根 build.gradle 注入 subprojects 块，强制所有插件模块（含 reactive_ble_mobile）compileSdk 35
+          cat >> app/android/build.gradle <<'EOF'
+
+          subprojects {
+              afterEvaluate { project ->
+                  if (project.hasProperty("android")) {
+                      project.android {
+                          compileSdk 35
+                      }
+                  }
+              }
+          }
+          EOF
 
       # 7. 生成 Rust ↔ Dart 绑定代码
       - name: Generate flutter_rust_bridge bindings

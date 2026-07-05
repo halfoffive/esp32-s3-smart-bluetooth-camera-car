@@ -57,22 +57,25 @@ jobs:
       - name: Build firmware
         run: pio run -d firmware -e esp32s3-ci
 
-      # 6. 合并 bin：bootloader + 分区表 + 应用 → firmware.bin（默认输出名）
-      - name: Merge bin
-        run: pio run -d firmware -e esp32s3-ci -t mergebin
+      # 6. 合并 bin：直接调用 esptool.py 把 bootloader + 分区表 + boot_app0 + 应用合并为 firmware-merged.bin
+      #    不使用 `pio run -t mergebin`：pioarduino 社区平台未注册该 SCons 目标，
+      #    会报错 `Do not know how to make File target 'mergebin'`，故改用 esptool 子命令直接合并。
+      - name: Merge bin (esptool)
+        run: |
+          esptool.py --chip esp32s3 merge-bin -o firmware-merged.bin \
+            0x0 firmware/.pio/build/esp32s3-ci/bootloader.bin \
+            0x8000 firmware/.pio/build/esp32s3-ci/partitions.bin \
+            0xe000 ~/.platformio/packages/framework-arduinoespressif32/tools/partitions/boot_app0.bin \
+            0x10000 firmware/.pio/build/esp32s3-ci/firmware.bin
 
-      # 7. 重命名产物到工程根目录，便于上传与发布
-      - name: Rename artifact
-        run: cp firmware/.pio/build/esp32s3-ci/firmware.bin firmware-merged.bin
-
-      # 8. 上传合并后的 bin 作为构建产物
+      # 7. 上传合并后的 bin 作为构建产物
       - name: Upload artifact
         uses: actions/upload-artifact@v7.0.1
         with:
           name: firmware-merged
           path: firmware-merged.bin
 
-      # 9. tag 推送时创建 Release 并附带 bin（可选）
+      # 8. tag 推送时创建 Release 并附带 bin（可选）
       - name: Create Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2

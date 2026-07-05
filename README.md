@@ -43,13 +43,18 @@
 ```bash
 cd firmware
 pio run -e esp32s3          # 编译
-pio run -e esp32s3 -t mergebin  # 合并 bootloader+partitions+firmware
-# 产物：.pio/build/esp32s3/firmware.bin
+# 合并 bin：pioarduino 平台不支持 pio run -t mergebin，改用 esptool.py 直接合并
+esptool.py --chip esp32s3 merge-bin -o firmware-merged.bin \
+  0x0 .pio/build/esp32s3/bootloader.bin \
+  0x8000 .pio/build/esp32s3/partitions.bin \
+  0xe000 ~/.platformio/packages/framework-arduinoespressif32/tools/partitions/boot_app0.bin \
+  0x10000 .pio/build/esp32s3/firmware.bin
+# 产物：firmware-merged.bin
 ```
 
 ### 烧录（合并 bin，0x0 偏移）
 ```bash
-esptool.py write_flash 0x0 firmware/.pio/build/esp32s3/firmware.bin
+esptool.py write_flash 0x0 firmware/firmware-merged.bin
 ```
 
 或用 PlatformIO 直接上传（仅 firmware 部分）：

@@ -4,6 +4,7 @@
 //! `frame_id` 变化视为新帧开始，丢弃旧帧状态并重置。
 
 use crate::ble::ImageChunk;
+use flutter_rust_bridge::frb;
 
 /// JPEG 分片重组状态机
 ///
