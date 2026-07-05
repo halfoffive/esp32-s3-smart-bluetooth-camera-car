@@ -7,7 +7,8 @@ use crate::ble::ImageChunk;
 
 /// JPEG 分片重组状态机
 ///
-/// 容忍乱序但要求 `frame_id` 一致；`frame_id` 变化时丢弃旧帧并以新帧重置。
+/// 容忍乱序但要求 `frame_id` 一致；`frame_id` 变化时丢弃旧帧状态并重置。
+#[frb(opaque)]
 pub struct ImageAssembler {
     /// 当前正在拼接的帧 ID；None 表示尚未收到任何分片
     pub current_frame_id: Option<u16>,

@@ -10,7 +10,14 @@
 
 // 重新导出常用类型，便于 Flutter 侧直接引用
 pub use crate::ble::{ControlPayload, ImageChunk, PacketKind, TelemetryPayload};
+pub use crate::control::encode_control;
 pub use crate::image::ImageAssembler;
+
+/// 构造一个新的 ImageAssembler 实例供 Dart 侧使用。
+#[frb(sync)]
+pub fn create_image_assembler() -> ImageAssembler {
+    ImageAssembler::new()
+}
 
 /// 处理来自 BLE NOTIFY 的原始包。
 ///

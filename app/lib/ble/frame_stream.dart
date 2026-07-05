@@ -21,6 +21,7 @@ import 'dart:typed_data';
 // frb codegen 绑定 —— 首次拉取须先 flutter_rust_bridge_codegen generate
 import 'package:smart_car_remote/src/rust/api.dart' as rust;
 import 'package:smart_car_remote/src/rust/ble.dart' as ble;
+import 'package:smart_car_remote/src/rust/image.dart' as image;
 
 /// 遥测数据（Dart 侧不可变模型）。
 ///
@@ -57,9 +58,9 @@ class Telemetry {
 /// 因 frb v2 跨 FFI 调用为异步，逐包串行化（Future 链）保证分片顺序与
 /// Rust 状态机一致——乱序写入 assembler 会导致 total_chunks 判定错误。
 class FrameStreamAssembler {
-  FrameStreamAssembler() : _assembler = rust.ImageAssembler();
+  FrameStreamAssembler() : _assembler = rust.createImageAssembler();
 
-  final rust.ImageAssembler _assembler;
+  final image.ImageAssembler _assembler;
   final StreamController<Uint8List> _controller =
       StreamController<Uint8List>.broadcast();
 
@@ -85,10 +86,9 @@ class FrameStreamAssembler {
     // 若 codegen 改为返回 (assembler, frame) 元组，此处改为：
     //   final result = await rust.handleNotifyPacket(_assembler, raw);
     //   _assembler = result.$1; final frame = result.$2;
-    final frame = await rust.handleNotifyPacket(_assembler, raw);
+    final frame = await rust.handleNotifyPacket(assembler: _assembler, raw: raw);
     if (frame != null) {
-      // frame 可能是 Uint8List? 或 List<int>?，统一转 Uint8List 广播
-      _controller.add(frame is Uint8List ? frame : Uint8List.fromList(frame));
+      _controller.add(frame);
     }
   }
 
@@ -124,7 +124,7 @@ class TelemetryParser {
     // frb v2 将 &[u8] 映射为 Uint8List，直接传 raw 即可
     // frb v2 将 Rust enum 生成 sealed class 层级：
     //   PacketKind_Telemetry(TelemetryPayload) 等子类
-    final kind = await ble.parsePacket(raw);
+    final kind = await ble.parsePacket(buf: raw);
     if (kind == null) return;
 
     // frb v2 对 tuple variant PacketKind::Telemetry(TelemetryPayload)

@@ -10,4 +10,4 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 
 [dependencies]
 # flutter_rust_bridge 集成；实际版本以 codegen 生成为准（当前 latest 为 2.x）
-flutter_rust_bridge = "2.0"
+flutter_rust_bridge = "=2.12.0"
