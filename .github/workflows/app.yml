@@ -1,0 +1,181 @@
+# App Build - Flutter + Rust 跨端 App CI 流水线
+# 详见 spec: .trae/specs/smart-bt-camera-car/spec.md
+#
+# 流水线职责：
+# 1. cargo doc 生成 Rust 子 crate 文档（独立 job，先跑）
+# 2. 矩阵构建 Android APK + Linux/Windows/macOS 桌面包
+# 3. tag 推送时聚合各 artifact 创建 GitHub Release
+#
+# 构建说明见 app/README.md
+
+name: App Build
+
+on:
+  push:
+    branches: [main, master]
+    tags: ['v*']
+    paths:
+      - 'app/**'
+      - '.github/workflows/app.yml'
+  pull_request:
+    paths:
+      - 'app/**'
+      - '.github/workflows/app.yml'
+  workflow_dispatch:
+
+jobs:
+  # Job 1: Rust 文档生成（无业务依赖，快速暴露接口问题）
+  cargo-doc:
+    runs-on: ubuntu-latest
+    steps:
+      # 1. 检出仓库代码
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # 2. 配置 Rust stable 工具链
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      # 3. 生成 Rust 子 crate 文档（不编译依赖、开启全部 feature，要求无警告）
+      - name: Generate cargo doc
+        run: cd app/rust && cargo doc --no-deps --all-features
+
+      # 4. 上传文档产物
+      - name: Upload cargo doc
+        uses: actions/upload-artifact@v4
+        with:
+          name: cargo-doc
+          path: app/rust/target/doc
+
+  # Job 2: 跨平台构建矩阵（Android APK + Linux/Windows/macOS 桌面）
+  build-matrix:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            flutter_target: apk
+            rust_target: aarch64-linux-android
+          - os: ubuntu-latest
+            flutter_target: linux
+            rust_target: x86_64-unknown-linux-gnu
+          - os: windows-latest
+            flutter_target: windows
+            rust_target: x86_64-pc-windows-msvc
+          - os: macos-latest
+            flutter_target: macos
+            rust_target: x86_64-apple-darwin
+
+    steps:
+      # 1. 检出仓库代码
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # 2. 配置 Flutter stable 通道
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      # 3. 配置 Rust stable 工具链
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      # 4. 安装 flutter_rust_bridge_codegen（cargo 官方推荐安装方式）
+      - name: Install flutter_rust_bridge_codegen
+        run: cargo install flutter_rust_bridge_codegen
+
+      # 5. 补全 Flutter 平台原生目录（已存在则无副作用，不覆盖 lib/ 与 pubspec.yaml）
+      - name: Bootstrap Flutter platforms
+        run: cd app && flutter create . --platforms=android,linux,windows,macos --org com.smartcar --project-name smart_car_remote
+
+      # 6. 生成 Rust ↔ Dart 绑定代码
+      - name: Generate flutter_rust_bridge bindings
+        run: cd app && flutter_rust_bridge_codegen generate
+
+      # 7. 安装 Linux 桌面构建依赖（仅 ubuntu runner 需要，apk/linux 共用）
+      - name: Install Linux desktop dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build libgtk-3-dev clang cmake
+
+      # 8. 添加 Rust 交叉编译目标（按矩阵条目）
+      - name: Add Rust target
+        run: rustup target add ${{ matrix.rust_target }}
+
+      # 9. 拉取 Dart 依赖
+      - name: Flutter pub get
+        run: cd app && flutter pub get
+
+      # 10. 按平台分支构建 release 产物
+      - name: Build Android APK
+        if: matrix.flutter_target == 'apk'
+        run: cd app && flutter build apk --release
+
+      - name: Build Linux desktop
+        if: matrix.flutter_target == 'linux'
+        run: cd app && flutter build linux --release
+
+      - name: Build Windows desktop
+        if: matrix.flutter_target == 'windows'
+        run: cd app && flutter build windows --release
+
+      - name: Build macOS desktop
+        if: matrix.flutter_target == 'macos'
+        run: cd app && flutter build macos --release
+
+      # 11. 上传构建产物（按平台区分命名）
+      - name: Upload Android artifact
+        if: matrix.flutter_target == 'apk'
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-android
+          path: app/build/app/outputs/flutter-apk/app-release.apk
+
+      - name: Upload Linux artifact
+        if: matrix.flutter_target == 'linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-linux
+          path: app/build/linux/x64/release/bundle/*
+
+      - name: Upload Windows artifact
+        if: matrix.flutter_target == 'windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-windows
+          path: app/build/windows/x64/runner/Release/*
+
+      - name: Upload macOS artifact
+        if: matrix.flutter_target == 'macos'
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-macos
+          path: app/build/macos/Build/Products/Release/*.app
+
+  # Job 3: tag 推送时聚合各 artifact 创建 GitHub Release（与 firmware.yml 风格一致）
+  release:
+    needs: [cargo-doc, build-matrix]
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # 下载所有构建产物到 artifacts/ 目录（每个 artifact 一个子目录）
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      # 创建 Release 并附带各平台二进制
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/app-android/*
+            artifacts/app-linux/*
+            artifacts/app-windows/*
+            artifacts/app-macos/*

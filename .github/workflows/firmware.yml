@@ -1,0 +1,80 @@
+# Firmware Build - ESP32-S3 固件 CI 流水线
+# 详见 spec: .trae/specs/smart-bt-camera-car/spec.md
+#
+# 流水线职责：
+# 1. 用 PlatformIO 编译 esp32s3-ci 环境（不触发 upload）
+# 2. 合并 bootloader + 分区表 + 应用为单一 firmware-merged.bin
+# 3. 上传 artifact；tag 推送时附带创建 GitHub Release
+#
+# 烧录说明见仓库 README（CI 内不执行烧录）：
+#   esptool.py write_flash 0x0 firmware-merged.bin
+
+name: Firmware Build
+
+on:
+  push:
+    branches: [main, master]
+    tags: ['v*']
+    paths:
+      - 'firmware/**'
+      - '.github/workflows/firmware.yml'
+  pull_request:
+    paths:
+      - 'firmware/**'
+      - '.github/workflows/firmware.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. 检出仓库代码
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # 2. 配置 Python（PlatformIO 运行时依赖）
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # 3. 安装 PlatformIO 与 esptool（esptool 用于本地烧录，CI 内仅编译不烧录）
+      - name: Install PlatformIO
+        run: |
+          python -m pip install --upgrade pip
+          pip install platformio esptool
+
+      # 4. 缓存 PlatformIO 平台/包目录（可选，加速后续构建）
+      #    缓存键绑定 platformio.ini，配置变更时自动失效
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: ~/.platformio
+          key: pio-${{ runner.os }}-${{ hashFiles('firmware/platformio.ini') }}
+
+      # 5. 编译固件（-d firmware 指定工程目录，-e esp32s3-ci 选择 CI 环境）
+      - name: Build firmware
+        run: pio run -d firmware -e esp32s3-ci
+
+      # 6. 合并 bin：bootloader + 分区表 + 应用 → firmware.bin（默认输出名）
+      - name: Merge bin
+        run: pio run -d firmware -e esp32s3-ci -t mergebin
+
+      # 7. 重命名产物到工程根目录，便于上传与发布
+      - name: Rename artifact
+        run: cp firmware/.pio/build/esp32s3-ci/firmware.bin firmware-merged.bin
+
+      # 8. 上传合并后的 bin 作为构建产物
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware-merged
+          path: firmware-merged.bin
+
+      # 9. tag 推送时创建 Release 并附带 bin（可选）
+      - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: firmware-merged.bin
