@@ -7,9 +7,9 @@
  *   左轮 ENA=GPIO1(PWM)  IN1=GPIO41 IN2=GPIO42
  *   右轮 ENB=GPIO2(PWM)  IN3=GPIO45 IN4=GPIO46
  *
- * LEDC 通道分配：LEDC_CHANNEL_0=左轮，LEDC_CHANNEL_1=右轮
- * 注：本实现使用经典 LEDC API（ledcSetup/ledcAttachPin/ledcWrite），
- *     兼容 Arduino-ESP32 core 2.x；3.x 仍提供兼容包装（可能告警）。
+ * LEDC 分配：左轮 ENA=GPIO1，右轮 ENB=GPIO2
+ * 注：本实现使用 Arduino-ESP32 core >= 3.0 的 LEDC API（ledcAttach +
+ *     ledcWrite(pin, duty)），不再使用 ledcSetup/ledcAttachPin/LEDC_CHANNEL_*。
  */
 
 #include <Arduino.h>
@@ -88,15 +88,13 @@ bool motor_init() {
     digitalWrite(MOTOR_R_IN3_GPIO, LOW);
     digitalWrite(MOTOR_R_IN4_GPIO, LOW);
 
-    /* LEDC 通道：左轮 ENA=通道0，右轮 ENB=通道1 */
-    ledcSetup(LEDC_CHANNEL_0, PWM_FREQ_HZ, PWM_RESOLUTION_BITS);
-    ledcSetup(LEDC_CHANNEL_1, PWM_FREQ_HZ, PWM_RESOLUTION_BITS);
-    ledcAttachPin(MOTOR_L_ENA_GPIO, LEDC_CHANNEL_0);
-    ledcAttachPin(MOTOR_R_ENB_GPIO, LEDC_CHANNEL_1);
+    /* LEDC：按 GPIO 绑定 PWM */
+    ledcAttach(MOTOR_L_ENA_GPIO, PWM_FREQ_HZ, PWM_RESOLUTION_BITS);
+    ledcAttach(MOTOR_R_ENB_GPIO, PWM_FREQ_HZ, PWM_RESOLUTION_BITS);
 
     /* 占空比 0 */
-    ledcWrite(LEDC_CHANNEL_0, 0);
-    ledcWrite(LEDC_CHANNEL_1, 0);
+    ledcWrite(MOTOR_L_ENA_GPIO, 0);
+    ledcWrite(MOTOR_R_ENB_GPIO, 0);
 
     return true;
 }
@@ -112,8 +110,8 @@ void motor_stop() {
     /* 更新目标状态（也会让任务循环写 0） */
     motor_set_target(0, 0, 0);
     /* 立即把 PWM 与方向引脚清零，确保断连即时保护 */
-    ledcWrite(LEDC_CHANNEL_0, 0);
-    ledcWrite(LEDC_CHANNEL_1, 0);
+    ledcWrite(MOTOR_L_ENA_GPIO, 0);
+    ledcWrite(MOTOR_R_ENB_GPIO, 0);
     stop_left_dir();
     stop_right_dir();
 }
@@ -199,9 +197,9 @@ void motor_task(void* arg) {
             stop_right_dir();
         }
 
-        /* 7. 写 LEDC PWM */
-        ledcWrite(LEDC_CHANNEL_0, left_pwm);
-        ledcWrite(LEDC_CHANNEL_1, right_pwm);
+    /* 7. 写 LEDC PWM */
+    ledcWrite(MOTOR_L_ENA_GPIO, left_pwm);
+    ledcWrite(MOTOR_R_ENB_GPIO, right_pwm);
 
         /* 8. 遥测上报（每周期） */
         TelemetryPayload telem;
