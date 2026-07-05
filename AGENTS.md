@@ -64,6 +64,8 @@ cargo doc --no-deps --open            # 本地浏览
 - CI 里的 `cargo doc` 使用 `--all-features`，本地生成文档时如需对齐可加上该参数。
 - 固件使用自定义分区表 `partitions.csv`，启用 `qio_opi` PSRAM，摄像头模型固定为 `CAMERA_MODEL_ESP32S3_EYE`。
 - 本地合并 bin 的输出文件与 CI 产物 `firmware-merged.bin` 同名但来源不同；CI 通过 `cp firmware/.pio/build/esp32s3-ci/firmware.bin firmware-merged.bin` 重命名。
+- `flutter_rust_bridge_codegen` 是 crates.io 上的 Rust crate（`cargo install`），不是 pub.dev 的 Dart 包；`pubspec.yaml` 中不得将其列为 `dev_dependency`，否则 `flutter pub get` 会失败。CI 通过 `cargo install` 安装（见 `.github/workflows/app.yml`）。
+- Arduino-ESP32 core 3.x 移除了 v2.x 的 LEDC API（`ledcSetup`/`ledcAttachPin`/`ledcWrite(channel, duty)` 及 `LEDC_CHANNEL_*` 宏）；须使用 `ledcAttach(pin, freq, resolution)` + `ledcWrite(pin, duty)`。注意 `esp_camera` 的 `camera_config_t.ledc_channel` 仍用 ESP-IDF 的 `ledc_channel_t` 枚举（`LEDC_CHANNEL_0` 等），不受影响。
 
 ## BLE 关键约定
 
