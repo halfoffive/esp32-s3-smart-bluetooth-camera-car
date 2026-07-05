@@ -75,6 +75,8 @@ cargo doc --no-deps --open            # 本地浏览
 - `#[frb(sync)]` / `#[frb(opaque)]` 等 frb v2 属性宏不会由 codegen 自动注入到用户源文件，使用该属性的模块（如 `api.rs` / `image.rs`）必须显式 `use flutter_rust_bridge::frb;`，否则 `cargo doc --no-deps --all-features` 报 `cannot find attribute 'frb' in this scope`。
 - CI 中 `flutter create .` 生成的 `android/app/build.gradle` 默认 `compileSdk = 33`，而 `flutter_reactive_ble` 的 `:reactive_ble_mobile` 依赖 AndroidX 1.7.x 要求 compileSdk ≥ 34。由于 `android/` 不在版本控制中，必须在 `flutter create .` 之后用 `sed` 提升 compileSdk 至 35，并向 `android/build.gradle` 注入 `subprojects` 块强制所有插件模块统一 compileSdk 35（见 `.github/workflows/app.yml` 的 "Patch Android compileSdk" 步骤）。
 - `pio run -t mergebin` 在 pioarduino 社区平台上不可用（SCons 目标未注册）；CI 与本地合并 bin 须改用 `esptool.py --chip esp32s3 merge-bin` 显式合并 bootloader(0x0) + partitions(0x8000) + boot_app0(0xe000) + firmware(0x10000)。
+- `app/android/`、`app/linux/`、`app/macos/`、`app/windows/` 不应提交 `.gitkeep` 等任何文件到版本控制；否则 CI checkout 后这些目录非空，`flutter create .` 会将其识别为已有平台目录，可能不重新生成 `android/app/build.gradle` 等原生文件。
+- CI 中 Android compileSdk patch 应使用 `if: matrix.flutter_target == 'apk'` 限制，避免在 `cargo-doc` job 与桌面平台（linux/windows/macos）矩阵条目运行。
 
 ## BLE 关键约定
 
