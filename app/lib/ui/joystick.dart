@@ -118,7 +118,7 @@ class _JoystickPainter extends CustomPainter {
       center,
       baseRadius,
       Paint()
-        ..color = AppColors.accent.withOpacity(0.35)
+        ..color = AppColors.accent.withValues(alpha: 0.35)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.5,
     );
@@ -151,7 +151,7 @@ class _JoystickPainter extends CustomPainter {
     canvas.drawCircle(
       thumb + const Offset(0, 2),
       thumbRadius,
-      Paint()..color = AppColors.bg.withOpacity(0.5),
+      Paint()..color = AppColors.bg.withValues(alpha: 0.5),
     );
 
     // ---- 拇指圆主体 ----
@@ -166,7 +166,7 @@ class _JoystickPainter extends CustomPainter {
       thumb,
       thumbRadius * 0.65,
       Paint()
-        ..color = AppColors.hudText.withOpacity(0.25)
+        ..color = AppColors.hudText.withValues(alpha: 0.25)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1,
     );

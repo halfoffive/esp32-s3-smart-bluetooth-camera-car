@@ -112,7 +112,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       color: AppColors.surfaceVariant,
                       borderRadius: BorderRadius.circular(6),
                       border: Border.all(
-                        color: AppColors.accent.withOpacity(0.3),
+                        color: AppColors.accent.withValues(alpha: 0.3),
                       ),
                     ),
                     child: Row(

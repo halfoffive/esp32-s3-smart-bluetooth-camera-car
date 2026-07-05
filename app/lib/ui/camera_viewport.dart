@@ -47,10 +47,10 @@ class CameraViewport extends ConsumerWidget {
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    Colors.black.withOpacity(0.45),
+                    Colors.black.withValues(alpha: 0.45),
                     Colors.transparent,
                     Colors.transparent,
-                    Colors.black.withOpacity(0.55),
+Colors.black.withValues(alpha: 0.55),
                   ],
                   stops: const [0.0, 0.18, 0.65, 1.0],
                 ),
@@ -281,9 +281,9 @@ class _HudChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.55),
+        color: Colors.black.withValues(alpha: 0.55),
         borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: color.withOpacity(0.45), width: 1),
+        border: Border.all(color: color.withValues(alpha: 0.45), width: 1),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,

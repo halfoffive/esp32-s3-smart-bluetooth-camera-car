@@ -318,7 +318,7 @@ class _ControlPanelBodyState extends ConsumerState<_ControlPanelBody> {
       decoration: BoxDecoration(
         color: AppColors.surfaceVariant,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.accent.withOpacity(0.3)),
+        border: Border.all(color: AppColors.accent.withValues(alpha: 0.3)),
       ),
       alignment: Alignment.center,
       child: Text(
