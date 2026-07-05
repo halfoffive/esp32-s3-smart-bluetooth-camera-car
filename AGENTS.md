@@ -77,6 +77,7 @@ cargo doc --no-deps --open            # 本地浏览
 - `pio run -t mergebin` 在 pioarduino 社区平台上不可用（SCons 目标未注册）；CI 与本地合并 bin 须改用 `esptool.py --chip esp32s3 merge-bin` 显式合并 bootloader(0x0) + partitions(0x8000) + boot_app0(0xe000) + firmware(0x10000)。
 - `app/android/`、`app/linux/`、`app/macos/`、`app/windows/` 不应提交 `.gitkeep` 等任何文件到版本控制；否则 CI checkout 后这些目录非空，`flutter create .` 会将其识别为已有平台目录，可能不重新生成 `android/app/build.gradle` 等原生文件。
 - CI 中 Android compileSdk patch 应使用 `if: matrix.flutter_target == 'apk'` 限制，避免在 `cargo-doc` job 与桌面平台（linux/windows/macos）矩阵条目运行。
+- GitHub Actions Windows runner 默认 shell 为 PowerShell，`rm` 是 `Remove-Item` 的别名，不支持 `-rf` 参数。CI 中所有使用 `rm -rf` 等 Unix 专属命令的 `run` 步骤必须显式指定 `shell: bash`，否则 Windows runner 上会报 `A parameter cannot be found that matches parameter name 'rf'`。
 
 ## BLE 关键约定
 

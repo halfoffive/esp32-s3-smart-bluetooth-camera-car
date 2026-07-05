@@ -55,6 +55,7 @@ jobs:
 
       # 6. 清理平台目录，避免残留文件导致 flutter create . 识别为已有目录而跳过生成
       - name: Clean platform directories
+        shell: bash
         run: rm -rf app/android app/ios app/linux app/macos app/windows
 
       # 7. 补全 Flutter 平台原生目录（已存在则无副作用，不覆盖 lib/ 与 pubspec.yaml）
@@ -122,6 +123,7 @@ jobs:
 
       # 6. 清理平台目录，避免残留文件导致 flutter create . 识别为已有目录而跳过生成
       - name: Clean platform directories
+        shell: bash
         run: rm -rf app/android app/ios app/linux app/macos app/windows
 
       # 7. 补全 Flutter 平台原生目录（已存在则无副作用，不覆盖 lib/ 与 pubspec.yaml）
@@ -133,6 +135,7 @@ jobs:
       - name: Patch Android compileSdk
         if: matrix.flutter_target == 'apk'
         run: |
+          test -f app/android/app/build.gradle || { echo "ERROR: app/android/app/build.gradle not found"; exit 1; }
           sed -i 's/compileSdk = [0-9]*/compileSdk = 35/' app/android/app/build.gradle
           # 在根 build.gradle 注入 subprojects 块，强制所有插件模块（含 reactive_ble_mobile）compileSdk 35
           cat >> app/android/build.gradle <<'EOF'
