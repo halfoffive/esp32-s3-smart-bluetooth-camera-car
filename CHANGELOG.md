@@ -9,6 +9,8 @@
 
 ### Changed
 - `ci(firmware): 切换 PlatformIO 平台为 pioarduino 社区发行包（platform-espressif32 stable），从而获得 Arduino-ESP32 core 3.x，与 motor_task.cpp 已迁移的 v3.x LEDC API 对齐；官方 platform 仍绑定 core 2.0.17。`
+- `ci: bump GitHub Actions 至 Node.js 24 版本（actions/checkout@v7.0.0、actions/cache@v6.1.0、actions/setup-python@v6.3.0、actions/upload-artifact@v7.0.1），消除 Node.js 20 deprecation warning。`
+- `ci(app): 在 flutter_rust_bridge_codegen generate 之前新增 cargo install cargo-expand 步骤，预先装好传递依赖，避免 codegen 期间重复编译/下载。`
 
 ### Fixed
 - `fix(app): pubspec.yaml 列出的 flutter_rust_bridge_codegen 不是 Dart 包（实为 crates.io 上的 Rust crate），导致 flutter pub get 失败；移除该 dev_dependency，codegen 改由 cargo install 提供（CI 已配置）。`

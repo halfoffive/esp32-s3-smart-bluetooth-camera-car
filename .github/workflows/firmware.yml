@@ -31,11 +31,11 @@ jobs:
     steps:
       # 1. 检出仓库代码
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7.0.0
 
       # 2. 配置 Python（PlatformIO 运行时依赖）
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6.3.0
         with:
           python-version: '3.11'
 
@@ -48,7 +48,7 @@ jobs:
       # 4. 缓存 PlatformIO 平台/包目录（可选，加速后续构建）
       #    缓存键绑定 platformio.ini，配置变更时自动失效
       - name: Cache PlatformIO
-        uses: actions/cache@v4
+        uses: actions/cache@v6.1.0
         with:
           path: ~/.platformio
           key: pio-${{ runner.os }}-${{ hashFiles('firmware/platformio.ini') }}
@@ -67,7 +67,7 @@ jobs:
 
       # 8. 上传合并后的 bin 作为构建产物
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7.0.1
         with:
           name: firmware-merged
           path: firmware-merged.bin
