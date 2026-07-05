@@ -32,8 +32,6 @@ dev_dependencies:
   # freezed / json_serializable 代码生成驱动
   build_runner: ^2.4.10
   freezed: ^2.5.2
-  # flutter_rust_bridge 代码生成器
-  flutter_rust_bridge_codegen: ^2.0.0
 
 flutter:
   uses-material-design: true
