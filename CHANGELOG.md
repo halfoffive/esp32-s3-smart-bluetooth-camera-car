@@ -24,6 +24,7 @@
 - `fix(ci/app): 为 app/rust/src/api.rs 与 image.rs 补 use flutter_rust_bridge::frb; 导入，修复 cargo doc --no-deps --all-features 报 'cannot find attribute frb in this scope'（frb v2 codegen 不会自动向用户源文件注入该 import）。`
 - `fix(ci/app): 在 flutter create . 之后追加 Patch Android compileSdk 步骤（sed 改 android/app/build.gradle + 向 android/build.gradle 注入 subprojects 块），将 compileSdk 提升到 35，修复 :reactive_ble_mobile 因 AndroidX 1.7.x 依赖要求 SDK 34+ 导致的 checkReleaseAarMetadata 失败。`
 - 修复 CI 中 Android compileSdk patch 步骤路径错误，将工作目录设为 `app/` 并使用 `android/app/build.gradle` 与 `android/build.gradle` 相对路径。
+- 修复 CI 中 `flutter create . --platforms=android,linux,windows,macos` 一次性生成多平台模板导致 `android/` 目录缺失的问题；改为按矩阵条目仅生成目标平台，并为 Bootstrap 步骤显式指定 `working-directory: app` 与 `shell: bash`。
 - 修复 `app/android/` 等平台目录因 `.gitkeep` 残留，导致 CI 中 `flutter create .` 未完整生成 `android/app/build.gradle`，进而使 Android SDK patch 步骤报 `No such file or directory`。
 - 限制 `app.yml` 中 Android compileSdk patch 仅在 `build-matrix` 的 `apk` 条目执行；`cargo-doc` job 与桌面平台构建不再执行该步骤。
 - 修复 Windows runner 上 `rm -rf` 命令不兼容 PowerShell 导致 "Clean platform directories" 步骤失败（添加 `shell: bash`）

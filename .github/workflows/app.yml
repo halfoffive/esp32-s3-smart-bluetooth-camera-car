@@ -60,7 +60,9 @@ jobs:
 
       # 7. 补全 Flutter 平台原生目录（已存在则无副作用，不覆盖 lib/ 与 pubspec.yaml）
       - name: Bootstrap Flutter platforms
-        run: cd app && flutter create . --platforms=android,linux,windows,macos --org com.smartcar --project-name smart_car_remote
+        working-directory: app
+        shell: bash
+        run: flutter create . --platforms=android,linux,windows,macos --org com.smartcar
 
       # 8. 生成 Rust ↔ Dart 绑定代码（产出 frb_generated.rs）
       - name: Generate flutter_rust_bridge bindings
@@ -126,18 +128,27 @@ jobs:
         shell: bash
         run: rm -rf app/android app/ios app/linux app/macos app/windows
 
-      # 7. 补全 Flutter 平台原生目录（已存在则无副作用，不覆盖 lib/ 与 pubspec.yaml）
+      # 7. 补全 Flutter 平台原生目录（仅生成本条目需要的平台，避免跨平台模板问题）
       - name: Bootstrap Flutter platforms
-        run: cd app && flutter create . --platforms=android,linux,windows,macos --org com.smartcar --project-name smart_car_remote
+        working-directory: app
+        shell: bash
+        run: flutter create . --platforms=${{ matrix.flutter_target == 'apk' && 'android' || matrix.flutter_target }} --org com.smartcar
 
-      # 8. 诊断 Android 项目文件是否存在
+      # 8. 列出已生成的平台目录，便于 CI 日志排查
+      - name: List generated platform directory
+        if: matrix.flutter_target != 'apk'
+        working-directory: app
+        shell: bash
+        run: ls -la ${{ matrix.flutter_target }} || true
+
+      # 9. 诊断 Android 项目文件是否存在
       - name: List Android project files
         if: matrix.flutter_target == 'apk'
         working-directory: app
         shell: bash
         run: ls -la android/app/build.gradle android/build.gradle
 
-      # 9. patch Android compileSdk 至 35（仅 Android 构建需要）：flutter_reactive_ble 依赖 AndroidX 1.7.x
+      # 10. patch Android compileSdk 至 35（仅 Android 构建需要）：flutter_reactive_ble 依赖 AndroidX 1.7.x
       #      要求 compileSdk ≥ 34；android/ 由 flutter create 生成、不在版本控制中，须在 CI 内 patch
       - name: Patch Android compileSdk
         if: matrix.flutter_target == 'apk'
@@ -160,26 +171,26 @@ jobs:
           }
           EOF
 
-      # 10. 生成 Rust ↔ Dart 绑定代码
+      # 11. 生成 Rust ↔ Dart 绑定代码
       - name: Generate flutter_rust_bridge bindings
         run: cd app && flutter_rust_bridge_codegen generate
 
-      # 11. 安装 Linux 桌面构建依赖（仅 ubuntu runner 需要，apk/linux 共用）
+      # 12. 安装 Linux 桌面构建依赖（仅 ubuntu runner 需要，apk/linux 共用）
       - name: Install Linux desktop dependencies
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y ninja-build libgtk-3-dev clang cmake
 
-      # 12. 添加 Rust 交叉编译目标（按矩阵条目）
+      # 13. 添加 Rust 交叉编译目标（按矩阵条目）
       - name: Add Rust target
         run: rustup target add ${{ matrix.rust_target }}
 
-      # 13. 拉取 Dart 依赖
+      # 14. 拉取 Dart 依赖
       - name: Flutter pub get
         run: cd app && flutter pub get
 
-      # 14. 按平台分支构建 release 产物
+      # 15. 按平台分支构建 release 产物
       - name: Build Android APK
         if: matrix.flutter_target == 'apk'
         run: cd app && flutter build apk --release
@@ -196,7 +207,7 @@ jobs:
         if: matrix.flutter_target == 'macos'
         run: cd app && flutter build macos --release
 
-      # 15. 上传构建产物（按平台区分命名）
+      # 16. 上传构建产物（按平台区分命名）
       - name: Upload Android artifact
         if: matrix.flutter_target == 'apk'
         uses: actions/upload-artifact@v7.0.1
