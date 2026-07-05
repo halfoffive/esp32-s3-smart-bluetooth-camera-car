@@ -33,6 +33,17 @@ target/
 .metadata
 # app 目录下的 Flutter 插件依赖描述
 app/.flutter-plugins*
+# Flutter 平台原生目录（由 flutter create . 在本地/CI 生成，不进入版本控制）
+app/android/
+app/ios/
+app/linux/
+app/macos/
+app/windows/
+# flutter_rust_bridge 生成绑定
+app/lib/src/rust/
+app/rust/src/frb_generated.rs
+# Dart 依赖锁定（本仓库选择不锁定 App 层依赖版本）
+app/pubspec.lock
 
 # -----------------------------------------------------------------------------
 # PlatformIO
