@@ -66,6 +66,7 @@ cargo doc --no-deps --open            # 本地浏览
 - 本地合并 bin 的输出文件与 CI 产物 `firmware-merged.bin` 同名但来源不同；CI 通过 `cp firmware/.pio/build/esp32s3-ci/firmware.bin firmware-merged.bin` 重命名。
 - `flutter_rust_bridge_codegen` 是 crates.io 上的 Rust crate（`cargo install`），不是 pub.dev 的 Dart 包；`pubspec.yaml` 中不得将其列为 `dev_dependency`，否则 `flutter pub get` 会失败。CI 通过 `cargo install` 安装（见 `.github/workflows/app.yml`）。
 - Arduino-ESP32 core 3.x 移除了 v2.x 的 LEDC API（`ledcSetup`/`ledcAttachPin`/`ledcWrite(channel, duty)` 及 `LEDC_CHANNEL_*` 宏）；须使用 `ledcAttach(pin, freq, resolution)` + `ledcWrite(pin, duty)`。注意 `esp_camera` 的 `camera_config_t.ledc_channel` 仍用 ESP-IDF 的 `ledc_channel_t` 枚举（`LEDC_CHANNEL_0` 等），不受影响。
+- `firmware/platformio.ini` 必须显式锁定 pioarduino 社区平台 URL（`https://github.com/pioarduino/platform-espressif32/releases/download/stable/platform-espressif32.zip`），**不可回退**到 `platform = espressif32`：官方 platform 仍只捆绑 Arduino-ESP32 core 2.0.17，与 `motor_task.cpp` 的 v3.x LEDC API 不兼容，CI 编译会失败。
 
 ## BLE 关键约定
 

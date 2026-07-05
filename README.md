@@ -34,6 +34,11 @@
 
 ## 固件构建与烧录
 
+> **平台要求**：`firmware/platformio.ini` 已锁定 `pioarduino` 社区平台
+> （`https://github.com/pioarduino/platform-espressif32/releases/download/stable/platform-espressif32.zip`），
+> 因为 `motor_task.cpp` 依赖 Arduino-ESP32 core **3.x** 的 LEDC API（`ledcAttach` / `ledcWrite(pin, duty)`），
+> 而 PlatformIO 官方 `platform-espressif32` 仍只捆绑 core 2.0.17。首次构建 PlatformIO 会自动下载该 zip，后续离线复用。
+
 ### 本地构建
 ```bash
 cd firmware
