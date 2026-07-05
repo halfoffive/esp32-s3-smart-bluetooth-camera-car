@@ -13,7 +13,6 @@
 #include <BLEDevice.h>
 #include <BLEServer.h>
 #include <BLEUtils.h>
-#include <BLE2902.h>
 #include <string.h>
 
 #include "freertos/FreeRTOS.h"
@@ -65,7 +64,9 @@ class SmartCarServerCallbacks : public BLEServerCallbacks {
  * ============================================================ */
 class ControlCharacteristicCallbacks : public BLECharacteristicCallbacks {
     void onWrite(BLECharacteristic* pChar) override {
-        std::string value = pChar->getValue();
+        // Arduino-ESP32 core 3.x 的 NimBLE 栈：getValue() 返回 Arduino String，
+        // 需要 .c_str() 才能隐式构造 std::string。
+        std::string value = pChar->getValue().c_str();
         if (value.empty()) return;
 
         const uint8_t* buf = reinterpret_cast<const uint8_t*>(value.data());
@@ -171,12 +172,14 @@ bool ble_init() {
 
     BLEService* pService = g_server->createService(BLE_SERVICE_UUID);
 
-    // 图像特征（NOTIFY）—— 需要 CCCD(2902) 让客户端订阅
+    // 图像特征（NOTIFY）。
+    // NimBLE 会在创建带 PROPERTY_NOTIFY / PROPERTY_INDICATE 的特征时
+    // 自动添加 CCCD（UUID 0x2902），因此无需（也不应）手动 new BLE2902()：
+    // 该类在 Arduino-ESP32 core 3.x + NimBLE 下已被标记为 deprecated。
     g_img_char = pService->createCharacteristic(
         BLE_CHAR_IMAGE_UUID,
         BLECharacteristic::PROPERTY_NOTIFY
     );
-    g_img_char->addDescriptor(new BLE2902());
 
     // 控制特征（WRITE）—— 不需要 CCCD(2902)：
     // 2902 描述符仅用于 NOTIFY/INDICATE 特征，客户端通过它订阅通知；
@@ -187,12 +190,11 @@ bool ble_init() {
     );
     g_ctrl_char->setCallbacks(new ControlCharacteristicCallbacks());
 
-    // 遥测特征（NOTIFY）—— 需要 CCCD(2902)
+    // 遥测特征（NOTIFY）—— 同上，NimBLE 自动添加 CCCD。
     g_telem_char = pService->createCharacteristic(
         BLE_CHAR_TELEMETRY_UUID,
         BLECharacteristic::PROPERTY_NOTIFY
     );
-    g_telem_char->addDescriptor(new BLE2902());
 
     pService->start();
     g_server->getAdvertising()->start();

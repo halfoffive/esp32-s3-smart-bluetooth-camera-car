@@ -17,6 +17,7 @@
 - `fix(app): 在 keyboard_controller.dart 导入 KeyEventResult，并移除 main.dart 中未使用的 ble_controller 导入。`
 - `fix(app): 将 UI 文件中弃用的 Color.withOpacity 替换为 Color.withValues(alpha: ...)。`
 - `fix(app/rust): 为 flutter_rust_bridge 生成绑定补充 ImageAssembler 构造器与 encode_control 重导出，并适配 Dart 调用方使用命名参数。`
+- `fix(firmware): ble_task.cpp 适配 Arduino-ESP32 core 3.x + NimBLE：ControlCharacteristicCallbacks::onWrite 中 getValue() 返回 Arduino String 改为 .c_str() 构造 std::string（修复 String→std::string 转换错误）；移除 BLE2902.h 与两处 addDescriptor(new BLE2902())（NimBLE 对 NOTIFY/INDICATE 特征自动添加 CCCD，BLE2902 在该栈下已 deprecated）。`
 
 ## [0.1.0] - 2026-07-04
 ### Added
