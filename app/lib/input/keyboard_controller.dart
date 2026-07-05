@@ -7,7 +7,7 @@
 import 'dart:async';
 
 import 'package:flutter/services.dart';
-import 'package:flutter/widgets.dart' show FocusNode;
+import 'package:flutter/widgets.dart' show FocusNode, KeyEventResult;
 
 import 'tilt_controller.dart' show ControlCommand;
 

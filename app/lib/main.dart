@@ -2,7 +2,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'ble/ble_controller.dart';
 import 'ui/camera_viewport.dart';
 import 'ui/control_panel.dart';
 import 'ui/settings_screen.dart';
