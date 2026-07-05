@@ -32,15 +32,35 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # 2. 配置 Rust stable 工具链
+      # 2. 配置 Flutter stable 通道（生成绑定需要）
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      # 3. 配置 Rust stable 工具链
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      # 3. 生成 Rust 子 crate 文档（不编译依赖、开启全部 feature，要求无警告）
+      # 4. 安装 flutter_rust_bridge_codegen（cargo 官方推荐安装方式）
+      # app/rust/src/frb_generated.rs 与 app/lib/src/rust/ 均为 gitignored，
+      # 必须在 CI 中重新生成，否则 lib.rs 的 `mod frb_generated;` 会导致 E0583。
+      - name: Install flutter_rust_bridge_codegen
+        run: cargo install flutter_rust_bridge_codegen
+
+      # 5. 补全 Flutter 平台原生目录（已存在则无副作用，不覆盖 lib/ 与 pubspec.yaml）
+      - name: Bootstrap Flutter platforms
+        run: cd app && flutter create . --platforms=android,linux,windows,macos --org com.smartcar --project-name smart_car_remote
+
+      # 6. 生成 Rust ↔ Dart 绑定代码（产出 frb_generated.rs）
+      - name: Generate flutter_rust_bridge bindings
+        run: cd app && flutter_rust_bridge_codegen generate
+
+      # 7. 生成 Rust 子 crate 文档（不编译依赖、开启全部 feature，要求无警告）
       - name: Generate cargo doc
         run: cd app/rust && cargo doc --no-deps --all-features
 
-      # 4. 上传文档产物
+      # 8. 上传文档产物
       - name: Upload cargo doc
         uses: actions/upload-artifact@v4
         with:
