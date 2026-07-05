@@ -16,15 +16,20 @@
 
 ```bash
 pio run -e esp32s3                       # 编译
-pio run -e esp32s3 -t mergebin           # 合并 bootloader + partitions + firmware
+# 合并 bin：pioarduino 平台不支持 `pio run -t mergebin`，须用 esptool.py 直接合并
+esptool.py --chip esp32s3 merge-bin -o firmware-merged.bin \
+  0x0 .pio/build/esp32s3/bootloader.bin \
+  0x8000 .pio/build/esp32s3/partitions.bin \
+  0xe000 ~/.platformio/packages/framework-arduinoespressif32/tools/partitions/boot_app0.bin \
+  0x10000 .pio/build/esp32s3/firmware.bin
 pio run -e esp32s3 -t upload             # 仅上传 firmware 部分
 pio device monitor                       # 串口监控，默认 115200
 ```
 
-合并产物路径：`.pio/build/esp32s3/firmware.bin`，烧录命令：
+合并产物路径：`firmware/firmware-merged.bin`（由 esptool.py merge-bin 生成于 `firmware/` 目录下），烧录命令（在仓库根目录执行）：
 
 ```bash
-esptool.py write_flash 0x0 firmware/.pio/build/esp32s3/firmware.bin
+esptool.py write_flash 0x0 firmware/firmware-merged.bin
 ```
 
 CI 使用 `esp32s3-ci` 环境（与 `esp32s3` 配置相同，仅用于区分 CI）。
@@ -63,10 +68,13 @@ cargo doc --no-deps --open            # 本地浏览
 - 修改 Rust 侧暴露给 Dart 的接口后，必须重新执行 `flutter_rust_bridge_codegen generate`。
 - CI 里的 `cargo doc` 使用 `--all-features`，本地生成文档时如需对齐可加上该参数。
 - 固件使用自定义分区表 `partitions.csv`，启用 `qio_opi` PSRAM，摄像头模型固定为 `CAMERA_MODEL_ESP32S3_EYE`。
-- 本地合并 bin 的输出文件与 CI 产物 `firmware-merged.bin` 同名但来源不同；CI 通过 `cp firmware/.pio/build/esp32s3-ci/firmware.bin firmware-merged.bin` 重命名。
+- 本地与 CI 均使用 `esptool.py --chip esp32s3 merge-bin` 合并四镜像为 `firmware-merged.bin`（pioarduino 社区平台未注册 `pio run -t mergebin` SCons 目标，会报 `Do not know how to make File target 'mergebin'`）。
 - `flutter_rust_bridge_codegen` 是 crates.io 上的 Rust crate（`cargo install`），不是 pub.dev 的 Dart 包；`pubspec.yaml` 中不得将其列为 `dev_dependency`，否则 `flutter pub get` 会失败。CI 通过 `cargo install` 安装（见 `.github/workflows/app.yml`）。
 - Arduino-ESP32 core 3.x 移除了 v2.x 的 LEDC API（`ledcSetup`/`ledcAttachPin`/`ledcWrite(channel, duty)` 及 `LEDC_CHANNEL_*` 宏）；须使用 `ledcAttach(pin, freq, resolution)` + `ledcWrite(pin, duty)`。注意 `esp_camera` 的 `camera_config_t.ledc_channel` 仍用 ESP-IDF 的 `ledc_channel_t` 枚举（`LEDC_CHANNEL_0` 等），不受影响。
 - `firmware/platformio.ini` 必须显式锁定 pioarduino 社区平台 URL（`https://github.com/pioarduino/platform-espressif32/releases/download/stable/platform-espressif32.zip`），**不可回退**到 `platform = espressif32`：官方 platform 仍只捆绑 Arduino-ESP32 core 2.0.17，与 `motor_task.cpp` 的 v3.x LEDC API 不兼容，CI 编译会失败。
+- `#[frb(sync)]` / `#[frb(opaque)]` 等 frb v2 属性宏不会由 codegen 自动注入到用户源文件，使用该属性的模块（如 `api.rs` / `image.rs`）必须显式 `use flutter_rust_bridge::frb;`，否则 `cargo doc --no-deps --all-features` 报 `cannot find attribute 'frb' in this scope`。
+- CI 中 `flutter create .` 生成的 `android/app/build.gradle` 默认 `compileSdk = 33`，而 `flutter_reactive_ble` 的 `:reactive_ble_mobile` 依赖 AndroidX 1.7.x 要求 compileSdk ≥ 34。由于 `android/` 不在版本控制中，必须在 `flutter create .` 之后用 `sed` 提升 compileSdk 至 35，并向 `android/build.gradle` 注入 `subprojects` 块强制所有插件模块统一 compileSdk 35（见 `.github/workflows/app.yml` 的 "Patch Android compileSdk" 步骤）。
+- `pio run -t mergebin` 在 pioarduino 社区平台上不可用（SCons 目标未注册）；CI 与本地合并 bin 须改用 `esptool.py --chip esp32s3 merge-bin` 显式合并 bootloader(0x0) + partitions(0x8000) + boot_app0(0xe000) + firmware(0x10000)。
 
 ## BLE 关键约定
 

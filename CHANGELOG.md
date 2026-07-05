@@ -20,6 +20,9 @@
 - `fix(app): 将 UI 文件中弃用的 Color.withOpacity 替换为 Color.withValues(alpha: ...)。`
 - `fix(app/rust): 为 flutter_rust_bridge 生成绑定补充 ImageAssembler 构造器与 encode_control 重导出，并适配 Dart 调用方使用命名参数。`
 - `fix(firmware): ble_task.cpp 适配 Arduino-ESP32 core 3.x + NimBLE：ControlCharacteristicCallbacks::onWrite 中 getValue() 返回 Arduino String 改为 .c_str() 构造 std::string（修复 String→std::string 转换错误）；移除 BLE2902.h 与两处 addDescriptor(new BLE2902())（NimBLE 对 NOTIFY/INDICATE 特征自动添加 CCCD，BLE2902 在该栈下已 deprecated）。`
+- `fix(ci/firmware): 替换 pio run -t mergebin 为 esptool.py --chip esp32s3 merge-bin 直接合并 bootloader+partitions+boot_app0+firmware；pioarduino 社区平台未注册 mergebin SCons 目标导致 CI 报 'Do not know how to make File target mergebin'。同时删除多余的 Rename artifact 步骤。`
+- `fix(ci/app): 为 app/rust/src/api.rs 与 image.rs 补 use flutter_rust_bridge::frb; 导入，修复 cargo doc --no-deps --all-features 报 'cannot find attribute frb in this scope'（frb v2 codegen 不会自动向用户源文件注入该 import）。`
+- `fix(ci/app): 在 flutter create . 之后追加 Patch Android compileSdk 步骤（sed 改 android/app/build.gradle + 向 android/build.gradle 注入 subprojects 块），将 compileSdk 提升到 35，修复 :reactive_ble_mobile 因 AndroidX 1.7.x 依赖要求 SDK 34+ 导致的 checkReleaseAarMetadata 失败。`
 
 ## [0.1.0] - 2026-07-04
 ### Added

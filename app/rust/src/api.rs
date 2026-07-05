@@ -8,6 +8,8 @@
 //! （兄弟文件内通过 `crate::ble` 等路径互引）；本模块通过 `pub use` 重导出
 //! 常用类型与高层 API 供 frb codegen 扫描。
 
+use flutter_rust_bridge::frb;
+
 // 重新导出常用类型，便于 Flutter 侧直接引用
 pub use crate::ble::{ControlPayload, ImageChunk, PacketKind, TelemetryPayload};
 pub use crate::control::encode_control;

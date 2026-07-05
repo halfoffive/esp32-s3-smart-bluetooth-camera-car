@@ -38,8 +38,13 @@ firmware/
 # 编译（默认 esp32s3 环境）
 pio run -e esp32s3
 
-# 合并 bootloader + partitions + firmware 为单一 bin（产物在 .pio/build/esp32s3/firmware.bin）
-pio run -e esp32s3 -t mergebin
+# 合并 bootloader + partitions + boot_app0 + firmware 为单一 bin
+# pioarduino 平台不支持 pio run -t mergebin，须用 esptool.py 直接合并
+esptool.py --chip esp32s3 merge-bin -o firmware-merged.bin \
+  0x0 .pio/build/esp32s3/bootloader.bin \
+  0x8000 .pio/build/esp32s3/partitions.bin \
+  0xe000 ~/.platformio/packages/framework-arduinoespressif32/tools/partitions/boot_app0.bin \
+  0x10000 .pio/build/esp32s3/firmware.bin
 
 # 直接上传（仅 firmware 部分，走 PlatformIO）
 pio run -e esp32s3 -t upload
