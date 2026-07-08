@@ -203,8 +203,15 @@ jobs:
           subprojects {
               afterEvaluate {
                   if (hasProperty("android")) {
-                      (extensions.findByName("android") as? com.android.build.api.dsl.CommonExtension<*, *, *, *, *>)?.apply {
-                          compileSdk = 35
+                      extensions.findByName("android")?.let { ext ->
+                          try {
+                              ext::class.java.getMethod("setCompileSdk", Int::class.javaPrimitiveType).invoke(ext, 35)
+                          } catch (_: Throwable) {
+                              try {
+                                  ext::class.java.getMethod("setCompileSdkVersion", Int::class.javaPrimitiveType).invoke(ext, 35)
+                              } catch (_: Throwable) {
+                              }
+                          }
                       }
                   }
               }
