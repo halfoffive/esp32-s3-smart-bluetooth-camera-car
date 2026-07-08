@@ -22,6 +22,7 @@
 - fix(firmware): 修正 `firmware/platformio.ini` 中 `espressif/esp32-camera` 依赖为 GitHub 源 `https://github.com/espressif/esp32-camera.git#v2.1.7`，修复 PlatformIO Library Registry 中 `^2.4.0`/`^2.1.7` 均不存在导致的 `UnknownPackageError`。
 - fix(firmware): 移除 `ble_task.cpp` 中 NimBLE 栈不存在的 `BLECharacteristic::getSubscribedCount()` 调用，改为直接调用 `send_image_frame()`（NimBLE 的 `notify()` 在无订阅时自动跳过），修复启用 `-DUSE_NIMBLE` 后的编译失败。
 - fix(ci/app): 修正 Android compileSdk patch 的 Kotlin DSL 注入块，将 `CommonExtension` 替换为反射调用 `setCompileSdk`/`setCompileSdkVersion(Int)`，修复 Gradle `Unresolved reference 'compileSdk'` 构建失败。
+- fix(ci/app): 修正根 `android/build.gradle(.kts)` 的 `subprojects` 注入方式：改在已有的第一个 `subprojects {` 块内插入 `afterEvaluate { ... }`，避免在文件末尾追加新块导致 Gradle 报 `Cannot run Project.afterEvaluate(Action) when the project is already evaluated`。
 - fix(app): `pubspec.yaml` 中 `flutter_rust_bridge` 的版本约束 `=2.12.0` 不符合 Dart pub 语法（`=` 是 Cargo 语法），导致 `flutter pub get` 报 `Invalid version constraint` 失败；改为精确版本 `2.12.0`。
 - fix(app): `ble_controller.dart` 修复多个状态机竞态：connect() 取消残留扫描订阅/定时器；startScan() 超时回调早退时补 complete 防止 Future 永久挂起；_onConnected() 置 connected 前取消残留 _reconnectTimer，避免健康连接被自残式重连断开；connect() 与 _attemptReconnect() 重置 _initializing 时同步递增 _initGeneration，防止旧 _onConnected 从 await 恢复后干扰新连接。
 - fix(app): `keyboard_controller.dart` 移除 `widgets.dart` 中对 `KeyEventResult` 的 show import（由 `services.dart` 全量提供），避免潜在编译错误。
