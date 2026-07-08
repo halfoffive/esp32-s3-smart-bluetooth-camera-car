@@ -31,6 +31,7 @@
 - fix(firmware): 摄像头 LEDC 通道改为 `LEDC_CHANNEL_2`/`LEDC_TIMER_2`，避免抢占电机 ENA 通道导致左轮失控；JPEG 帧缓冲改用 PSRAM；PID 重置分支不再清零 `last_error`；`onDisconnect` 直接 `motor_stop()`；`send_image_frame` 循环内检查 `g_connected`；`esp32-camera` 锁定 `^2.4.0`；`partitions.csv` fr 分区补 `spiffs` 子类型；删除 `angular_mdps` 死字段。
 - fix(app): `flutter_rust_bridge.yaml` 补 `crate::image`；`parse_packet` 加 `len<1` 校验防 panic；`encode_control`/`parse_packet`/`handle_notify_packet` 加 `#[frb(named_args)]`；`startScan` 改 `Timer` 可取消并加状态守卫；`_onConnected` 先置 connected 再写入且失败统一进重连；订阅流补 `onError`；`frame_stream` 加 `isClosed` 检查与 `try/catch`；`_onJoystick` 加 80ms 节流；`tilt_controller` stop 指令绕过节流；`camera_viewport` FPS 定时归零；`encode_control` 返回 `Result` 防 FFI panic；`image.rs` 拒绝 `total_chunks==0`；移除未使用依赖。
 - docs: `CHANGELOG.md` 链接占位符替换为实际仓库；`smart-bt-camera-car` spec/tasks 同步 `esptool.py merge-bin`；`app/rust/README.md` 修正 `api.rs`；`AGENTS.md` mergebin 条目去重、仓库边界补充 fix-ci spec。
+- fix(app): `ble_controller.dart` 重连状态机加固：`_onDisconnected` 幂等守卫防 `_reconnectAttempts` 双重自增；`_attemptReconnect` 置 `connecting` 防重连失败卡死；`_initGeneration` 计数器 + try/catch/finally 全路径 generation 守卫，防旧 `_onConnected` 从 await 恢复后打断新连接或覆盖特征订阅；`connect()` 重置 `_initializing`。
 
 ## [0.1.0] - 2026-07-04
 ### Added

@@ -353,6 +353,7 @@ class BleController extends StateNotifier<BleState> {
           // 旧代际恢复：占位写入后若 generation 已变，不执行后续副作用。
           if (gen != _initGeneration) return;
         } catch (e) {
+          if (gen != _initGeneration) return;
           // WRITE 通道不通，视为连接失败
           _onDisconnected(error: 'WRITE 通道初始化失败: $e');
           return;
