@@ -190,18 +190,21 @@ jobs:
             fi
           done
 
-          # 2) 在根 build.gradle(.kts) 注入 subprojects 块，强制所有插件模块 compileSdk 35，同样 DSL-aware
+          # 2) 在根 build.gradle(.kts) 第一个已有的 subprojects 块内注入 afterEvaluate，
+          #    强制所有插件模块 compileSdk 35。直接 append 新的 subprojects 块会触发 Gradle
+          #    "Cannot run Project.afterEvaluate(Action) when the project is already evaluated"。
           ROOT_GRADLE=""
           for f in app/android/build.gradle app/android/build.gradle.kts; do
             if [ -f "$f" ]; then ROOT_GRADLE="$f"; break; fi
           done
           if [ -n "$ROOT_GRADLE" ]; then
-            case "$ROOT_GRADLE" in
-              *.gradle.kts)
-                cat >> "$ROOT_GRADLE" <<'EOF'
-
-          subprojects {
-              afterEvaluate {
+            python3 - "$ROOT_GRADLE" <<'PY'
+          import sys, re
+          path = sys.argv[1]
+          with open(path, 'r', encoding='utf-8') as f:
+              text = f.read()
+          if path.endswith('.kts'):
+              block = '''    afterEvaluate {
                   if (hasProperty("android")) {
                       extensions.findByName("android")?.let { ext ->
                           try {
@@ -215,24 +218,26 @@ jobs:
                       }
                   }
               }
-          }
-          EOF
-                ;;
-              *.gradle)
-                cat >> "$ROOT_GRADLE" <<'EOF'
-
-          subprojects {
-              afterEvaluate { project ->
+          '''
+          else:
+              block = '''    afterEvaluate { project ->
                   if (project.hasProperty("android")) {
                       project.android {
                           compileSdk 35
                       }
                   }
               }
-          }
-          EOF
-                ;;
-            esac
+          '''
+          pattern = re.compile(r'^(subprojects\s*\{)\s*$', re.MULTILINE)
+          def repl(m, block=block):
+              return m.group(1) + '\n' + block
+          new_text, count = pattern.subn(repl, text, count=1)
+          if count == 0:
+              # 没有现有 subprojects 块则追加
+              new_text = text.rstrip() + '\n\n' + block.strip() + '\n'
+          with open(path, 'w', encoding='utf-8') as f:
+              f.write(new_text)
+          PY
           fi
 
       # 10. 生成 Rust ↔ Dart 绑定代码
