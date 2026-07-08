@@ -203,7 +203,7 @@ jobs:
           subprojects {
               afterEvaluate {
                   if (hasProperty("android")) {
-                      (extensions.findByName("android") as com.android.build.gradle.BaseExtension).apply {
+                      (extensions.findByName("android") as? com.android.build.api.dsl.CommonExtension<*, *, *, *, *>)?.apply {
                           compileSdk = 35
                       }
                   }
