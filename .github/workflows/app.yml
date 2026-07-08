@@ -180,18 +180,31 @@ jobs:
           echo "Patching $APP_GRADLE and $ROOT_GRADLE"
           sed -i 's/compileSdk = [0-9]*/compileSdk = 35/' "$APP_GRADLE"
           # 在根 build 文件注入 subprojects 块，强制所有插件模块（含 reactive_ble_mobile）compileSdk 35
-          cat >> "$ROOT_GRADLE" <<'EOF'
+          if [[ "$ROOT_GRADLE" == *.kts ]]; then
+            cat >> "$ROOT_GRADLE" <<'KOTLIN_EOF'
 
-          subprojects {
-              afterEvaluate { project ->
-                  if (project.hasProperty("android")) {
-                      project.android {
-                          compileSdk 35
-                      }
-                  }
-              }
-          }
-          EOF
+subprojects {
+    afterEvaluate {
+        if (extensions.findByName("android") != null) {
+            (extensions.getByName("android") as com.android.build.gradle.BaseExtension).compileSdkVersion(35)
+        }
+    }
+}
+KOTLIN_EOF
+          else
+            cat >> "$ROOT_GRADLE" <<'GROOVY_EOF'
+
+subprojects {
+    afterEvaluate { project ->
+        if (project.hasProperty("android")) {
+            project.android {
+                compileSdk 35
+            }
+        }
+    }
+}
+GROOVY_EOF
+          fi
 
       # 11. 生成 Rust ↔ Dart 绑定代码
       - name: Generate flutter_rust_bridge bindings

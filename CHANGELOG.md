@@ -25,6 +25,7 @@
 - `fix(app): frame_stream.dart Future 链缺少 .catchError，单次 FFI 异常永久中断帧/遥测流；增加 catchError 保持链存活。`
 - `fix(ci/app): macOS rust_target 从 x86_64-apple-darwin 改为 aarch64-apple-darwin（macos-latest 现为 arm64 runner）。`
 - `fix(ci/app): release job 不再依赖 cargo-doc；download-artifact 从 v4 升级到 v7；Linux 依赖步骤条件改为 matrix.flutter_target == 'linux'。`
+- `fix(ci/app): Patch Android compileSdk 步骤向 build.gradle.kts 注入 Groovy 语法（compileSdk 35 无 =）导致 Kotlin DSL 编译失败；改为检测 .kts 扩展名并注入 Kotlin DSL 语法（compileSdkVersion(35)）。`
 - `fix(app): pubspec.yaml 列出的 flutter_rust_bridge_codegen 不是 Dart 包（实为 crates.io 上的 Rust crate），导致 flutter pub get 失败；移除该 dev_dependency，codegen 改由 cargo install 提供（CI 已配置）。`
 - `fix(firmware): motor_task.cpp 迁移至 Arduino-ESP32 v3.x LEDC API（ledcAttach + ledcWrite(pin, duty)），修复 CI 因 ledcSetup/ledcAttachPin/LEDC_CHANNEL_* 在 v3.x 被移除导致的编译失败。`
 - `fix(app): 修正 ble_controller.dart 中 flutter_reactive_ble subscribeToCharacteristic 的订阅类型（Stream<List<int>>），移除已废弃的 CharacteristicValue 提取辅助函数。`

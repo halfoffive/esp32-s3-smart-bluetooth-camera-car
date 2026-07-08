@@ -80,6 +80,7 @@ cargo doc --no-deps --open            # 本地浏览
 - `app/android/`、`app/linux/`、`app/macos/`、`app/windows/` 不应提交 `.gitkeep` 等任何文件到版本控制；否则 CI checkout 后这些目录非空，`flutter create .` 会将其识别为已有平台目录，可能不重新生成 `android/app/build.gradle` 等原生文件。
 - CI 中 Android compileSdk patch 步骤仅在 `build-matrix` job 的 `apk` 条目执行（`if: matrix.flutter_target == 'apk'`）；`cargo-doc` job 不包含此步骤。
 - CI 中 Android compileSdk patch 步骤应通过 `working-directory: app` 在 Flutter 项目根目录内执行，自动检测 `android/app/build.gradle` 或 `android/app/build.gradle.kts`（Flutter 3.44.4+ 默认生成 Kotlin DSL），使用相对路径；不要在仓库根目录下使用 `app/android/...` 绝对路径。
+- 向 `build.gradle.kts` 注入 `subprojects` 块时必须使用 Kotlin DSL 语法（`compileSdkVersion(35)` + `extensions.findByName` + 强转 `BaseExtension`），Groovy 语法（`compileSdk 35` 无 `=`）在 Kotlin DSL 中会编译失败；CI 须根据 `.kts` 扩展名分支选择语法。
 - GitHub Actions Windows runner 默认 shell 为 PowerShell，`rm` 是 `Remove-Item` 的别名，不支持 `-rf` 参数。CI 中所有使用 `rm -rf` 等 Unix 专属命令的 `run` 步骤必须显式指定 `shell: bash`，否则 Windows runner 上会报 `A parameter cannot be found that matches parameter name 'rf'`。
 
 ## BLE 关键约定
