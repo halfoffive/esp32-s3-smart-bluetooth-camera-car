@@ -4,7 +4,6 @@
 //! PAYLOAD = `direction(1) + turn(1) + speed_pct(1)`，共 3 字节，故 LEN = 4。
 
 use crate::ble::{crc8, CMD_CONTROL, SYNC0, SYNC1};
-use flutter_rust_bridge::frb;
 
 /// 编码控制指令为完整 packet 字节流。
 ///

@@ -7,8 +7,6 @@
 //! - 多字节载荷字段（frame_id / chunk_idx / rpm ...）一律小端
 //! - CRC8：多项式 0x07，初始 0x00，无反射，覆盖 `LEN_HI..PAYLOAD`（不含 SYNC、不含 CRC 自身）
 
-use flutter_rust_bridge::frb;
-
 /// 同步头字节 0
 pub const SYNC0: u8 = 0xAA;
 /// 同步头字节 1
