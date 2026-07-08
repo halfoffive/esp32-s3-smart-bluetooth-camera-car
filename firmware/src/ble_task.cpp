@@ -24,6 +24,7 @@
 #include "crc8.h"
 #include "ble_task.h"
 #include "camera_task.h"  // CameraFrame 类型定义
+#include "motor_task.h"   // motor_stop()，用于 onDisconnect 即时停车
 
 /* ============================================================
  * 全局状态
@@ -54,6 +55,9 @@ class SmartCarServerCallbacks : public BLEServerCallbacks {
     }
     void onDisconnect(BLEServer* server) override {
         g_connected = false;
+        // 断连即时保护：直接停车，不再等 loop() 检测
+        // motor_stop 线程安全（volatile 写 + ledcWrite + digitalWrite）
+        motor_stop();
         // 重新开始广播，等待客户端重连
         server->getAdvertising()->start();
     }
@@ -101,6 +105,7 @@ static void send_image_frame(CameraFrame* frame) {
     static uint8_t buf[BLE_MTU_SIZE];
 
     for (size_t idx = 0; idx < total_chunks; idx++) {
+        if (!g_connected) break;  // 断连提前退出，避免无效发送
         size_t offset = idx * payload_cap;
         size_t chunk_len = (offset + payload_cap > frame->len)
                            ? (frame->len - offset)

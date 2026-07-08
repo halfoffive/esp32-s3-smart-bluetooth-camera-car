@@ -8,6 +8,7 @@
  */
 #include <Arduino.h>
 #include "esp_camera.h"
+#include "esp_heap_caps.h"   // heap_caps_malloc / MALLOC_CAP_SPIRAM
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "config.h"
@@ -39,8 +40,10 @@ bool camera_init() {
     memset(&config, 0, sizeof(config));
 
     // LEDC 通道与定时器（esp_camera 内部用于产生 XCLK）
-    config.ledc_channel = LEDC_CHANNEL_0;
-    config.ledc_timer   = LEDC_TIMER_0;
+    // 注意：motor_init 的 ledcAttach 已占用 LEDC_CHANNEL_0/1（左/右轮 ENA/ENB），
+    // 摄像头 XCLK 必须使用 LEDC_CHANNEL_2 避免通道冲突覆盖电机 PWM。
+    config.ledc_channel = LEDC_CHANNEL_2;
+    config.ledc_timer   = LEDC_TIMER_2;
 
     // 引脚映射
     config.pin_pwdn     = CAM_PIN_PWDN;
@@ -113,7 +116,8 @@ void camera_task(void* arg) {
             vTaskDelay(pdMS_TO_TICKS(10));
             continue;
         }
-        frame->data = (uint8_t*)malloc(fb->len);
+        // JPEG payload 优先分配到 PSRAM，释放内部 SRAM 压力
+        frame->data = (uint8_t*)heap_caps_malloc(fb->len, MALLOC_CAP_SPIRAM);
         if (frame->data == nullptr) {
             free(frame);
             esp_camera_fb_return(fb);

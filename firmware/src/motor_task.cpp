@@ -187,9 +187,9 @@ void motor_task(void* arg) {
             left_pwm  = clamp_pwm((float)left_pwm  - correction / 2.0f);
             right_pwm = clamp_pwm((float)right_pwm + correction / 2.0f);
         } else {
-            /* 转向模式或停车：重置 PID 状态，避免积分残留 */
+            /* 转向模式或停车：清零积分避免残留，保留 last_error
+             * 避免从转向切回直行时 derivative 因 last_error=0 产生冲击 */
             integral = 0.0f;
-            last_error = 0.0f;
         }
 
         /* 6. 设置方向引脚 */

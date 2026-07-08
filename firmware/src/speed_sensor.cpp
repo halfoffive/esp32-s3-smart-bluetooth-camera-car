@@ -1,7 +1,7 @@
 /**
  * speed_sensor.cpp - 红外测速任务实现 (Task 3)
  *
- * 双红外对射模块 → 中断脉冲计数 → 10ms 窗口换算 RPM/线速度/角速度。
+ * 双红外对射模块 → 中断脉冲计数 → 10ms 窗口换算 RPM/线速度。
  * 设计依据: .trae/specs/smart-bt-camera-car/spec.md
  * 物理参数与引脚定义见 config.h。
  */
@@ -82,7 +82,6 @@ SpeedData speed_sensor_get() {
  * 公式严格遵循 spec.md "转速测量" 章节：
  *   RPM = (pulses × 60) / (window_sec × ENCODER_SLOTS)
  *   v   = π × D × RPM / 60
- *   ω   = (v_right − v_left) / 轮距   (rad/s)
  * ============================================================ */
 void speed_task(void* arg) {
     (void)arg;
@@ -129,24 +128,11 @@ void speed_task(void* arg) {
         if (left_v_mm_s  > 32767.0f) left_v_mm_s  = 32767.0f;
         if (right_v_mm_s > 32767.0f) right_v_mm_s = 32767.0f;
 
-        // 角速度 ω = (v_right − v_left) / WHEEL_TRACK_MM  (rad/s)
-        // 单位自洽: (mm/s) / mm = 1/s = rad/s
-        float omega_rad_s = (right_v_mm_s - left_v_mm_s) / (float)WHEEL_TRACK_MM;
-        // 转 millideg/s: ω_mdps = ω × 180000 / π
-        // (1 rad = 180/π deg = 180000/π millideg ≈ 57295.78 millideg)
-        float omega_mdps_f = omega_rad_s * 180000.0f / (float)M_PI;
-
-        // 饱和到 int16 范围，避免有符号溢出 UB
-        // (极端差速时可能超过 ±32767 millideg/s ≈ ±32.7 deg/s)
-        if (omega_mdps_f >  32767.0f) omega_mdps_f =  32767.0f;
-        if (omega_mdps_f < -32768.0f) omega_mdps_f = -32768.0f;
-
         SpeedData update;
         update.left_rpm         = (int16_t)left_rpm_u;
         update.right_rpm        = (int16_t)right_rpm_u;
         update.left_speed_mm_s  = (int16_t)left_v_mm_s;
         update.right_speed_mm_s = (int16_t)right_v_mm_s;
-        update.angular_mdps     = (int16_t)omega_mdps_f;
         update.last_update_ms   = now_ms;
 
         // 临界区写入共享数据，避免与 speed_sensor_get() 撕裂
