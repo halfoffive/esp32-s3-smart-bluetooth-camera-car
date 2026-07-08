@@ -292,6 +292,9 @@ class BleController extends StateNotifier<BleState> {
           deviceId: deviceId,
           mtu: CarDeviceConstants.negotiatedMtu,
         );
+        // 旧代际恢复：requestMtu 后若 generation 已变，不再继续后续订阅，
+        // 避免覆盖新 _onConnected 的特征订阅。
+        if (gen != _initGeneration) return;
 
         // 2) 订阅图像与遥测特征
         final imageChar = _qualifiedChar(
@@ -311,6 +314,8 @@ class BleController extends StateNotifier<BleState> {
             state = state.copyWith(errorMessage: '特征订阅错误: $e');
           },
         );
+        // 旧代际恢复：image 订阅后若 generation 已变，不覆盖新订阅。
+        if (gen != _initGeneration) return;
         _telemetrySub = _ble.subscribeToCharacteristic(telemetryChar).listen(
           (bytes) {
             _telemetryParser.handlePacket(Uint8List.fromList(bytes));
@@ -319,6 +324,8 @@ class BleController extends StateNotifier<BleState> {
             state = state.copyWith(errorMessage: '特征订阅错误: $e');
           },
         );
+        // 旧代际恢复：telemetry 订阅后若 generation 已变，不修改状态。
+        if (gen != _initGeneration) return;
 
         // 3) 先置 connected 状态：sendControl 内部校验 status==connected，
         //    顺序颠倒会导致占位指令被静默丢弃。
@@ -343,12 +350,18 @@ class BleController extends StateNotifier<BleState> {
               speedPct: 0,
             ),
           );
+          // 旧代际恢复：占位写入后若 generation 已变，不执行后续副作用。
+          if (gen != _initGeneration) return;
         } catch (e) {
           // WRITE 通道不通，视为连接失败
           _onDisconnected(error: 'WRITE 通道初始化失败: $e');
           return;
         }
       } catch (e) {
+        // 旧代际恢复（gen != _initGeneration）不处理：旧 _onConnected 从 await
+        // 恢复后，新连接已设 status=connected，此处 _onDisconnected 会绕过幂等
+        // 守卫错误打断新连接。
+        if (gen != _initGeneration) return;
         // requestMtu / 订阅失败：统一走 _onDisconnected 触发重连，
         // 而非直接置 disconnected（否则不会进入重连流程）
         _onDisconnected(error: '连接初始化失败: $e');
