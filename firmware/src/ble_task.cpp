@@ -64,9 +64,9 @@ class SmartCarServerCallbacks : public BLEServerCallbacks {
  * ============================================================ */
 class ControlCharacteristicCallbacks : public BLECharacteristicCallbacks {
     void onWrite(BLECharacteristic* pChar) override {
-        // Arduino-ESP32 core 3.x 的 NimBLE 栈：getValue() 返回 Arduino String，
-        // 需要 .c_str() 才能隐式构造 std::string。
-        std::string value = pChar->getValue().c_str();
+        // Arduino-ESP32 core 3.x 的 NimBLE 栈：getValue() 返回 std::string，
+        // 直接拷贝以保留内嵌的 0x00 字节（控制帧 LEN_HI 恒为 0x00）。
+        std::string value = pChar->getValue();
         if (value.empty()) return;
 
         const uint8_t* buf = reinterpret_cast<const uint8_t*>(value.data());

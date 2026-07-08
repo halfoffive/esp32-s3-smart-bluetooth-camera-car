@@ -13,6 +13,8 @@
 - `ci(app): 在 flutter_rust_bridge_codegen generate 之前新增 cargo install cargo-expand 步骤，预先装好传递依赖，避免 codegen 期间重复编译/下载。`
 
 ### Fixed
+- `fix(firmware): ble_task.cpp onWrite 回调中 getValue().c_str() 在第一个 0x00 字节处截断控制帧（控制帧 LEN_HI 恒为 0x00），导致所有控制指令被静默丢弃；改为直接 getValue() 拷贝 std::string 保留完整二进制。`
+- `fix(firmware): motor_task.cpp ledcAttach 自动分配通道 0 与 esp_camera 的 LEDC_CHANNEL_0 冲突，覆盖左轮 PWM；改用 ledcAttachChannel 显式指定通道 1/2。`
 - `fix(app): pubspec.yaml 列出的 flutter_rust_bridge_codegen 不是 Dart 包（实为 crates.io 上的 Rust crate），导致 flutter pub get 失败；移除该 dev_dependency，codegen 改由 cargo install 提供（CI 已配置）。`
 - `fix(firmware): motor_task.cpp 迁移至 Arduino-ESP32 v3.x LEDC API（ledcAttach + ledcWrite(pin, duty)），修复 CI 因 ledcSetup/ledcAttachPin/LEDC_CHANNEL_* 在 v3.x 被移除导致的编译失败。`
 - `fix(app): 修正 ble_controller.dart 中 flutter_reactive_ble subscribeToCharacteristic 的订阅类型（Stream<List<int>>），移除已废弃的 CharacteristicValue 提取辅助函数。`

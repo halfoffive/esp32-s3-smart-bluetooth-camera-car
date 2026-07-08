@@ -88,9 +88,9 @@ bool motor_init() {
     digitalWrite(MOTOR_R_IN3_GPIO, LOW);
     digitalWrite(MOTOR_R_IN4_GPIO, LOW);
 
-    /* LEDC：按 GPIO 绑定 PWM */
-    ledcAttach(MOTOR_L_ENA_GPIO, PWM_FREQ_HZ, PWM_RESOLUTION_BITS);
-    ledcAttach(MOTOR_R_ENB_GPIO, PWM_FREQ_HZ, PWM_RESOLUTION_BITS);
+    /* LEDC：按 GPIO 绑定 PWM，显式指定通道 1/2 避免与 esp_camera 的 LEDC_CHANNEL_0 冲突 */
+    ledcAttachChannel(MOTOR_L_ENA_GPIO, PWM_FREQ_HZ, PWM_RESOLUTION_BITS, 1);
+    ledcAttachChannel(MOTOR_R_ENB_GPIO, PWM_FREQ_HZ, PWM_RESOLUTION_BITS, 2);
 
     /* 占空比 0 */
     ledcWrite(MOTOR_L_ENA_GPIO, 0);
