@@ -276,7 +276,10 @@ class BleController extends StateNotifier<BleState> {
     _initializing = true;
     try {
       final deviceId = state.deviceId ?? _lastDeviceId;
-      if (deviceId == null) return;
+      if (deviceId == null) {
+        _onDisconnected(error: '内部错误: deviceId 为空');
+        return;
+      }
 
       try {
         // 1) 协商 MTU 512（与固件 BLE_MTU_SIZE 一致）
@@ -354,6 +357,16 @@ class BleController extends StateNotifier<BleState> {
   void _onDisconnected({String? error}) {
     _cancelCharacteristicSubs();
 
+    // 幂等守卫：若已在重连中/已断开（重复触发）且非用户主动断开，
+    // 仅更新错误信息，不重复自增 _reconnectAttempts / 不重调度定时器。
+    // 首次断连时状态为 connecting/connected，守卫不命中，正常处理。
+    if (!_userDisconnect &&
+        (state.status == ConnectionStatus.reconnecting ||
+            state.status == ConnectionStatus.disconnected)) {
+      state = state.copyWith(errorMessage: error);
+      return;
+    }
+
     if (_userDisconnect) {
       // 用户主动断开：清理后回到 disconnected
       state = BleState(
@@ -389,6 +402,11 @@ class BleController extends StateNotifier<BleState> {
   void _attemptReconnect() {
     final id = _lastDeviceId;
     if (id == null || _userDisconnect) return;
+
+    // 重置重入保护：即使旧 _onConnected 仍挂起在 await，
+    // 新重连触发的 _onConnected 也能进入（旧 _onConnected 恢复后
+    // finally 仍会置 _initializing = false，幂等无害）。
+    _initializing = false;
 
     _connSub?.cancel();
     _connSub = _ble.connectToDevice(id: id).listen(
