@@ -22,8 +22,9 @@
 /* 全局：图像帧队列，元素为 CameraFrame* 指针，容量 2 避免内存占用过大 */
 static QueueHandle_t g_frame_queue = nullptr;
 
-/* 全局：上次 BLE 连接状态，用于检测断连沿触发紧急停车 */
-static volatile bool g_ble_connected_prev = false;
+/* 全局：上次 BLE 连接状态，用于检测断连沿触发紧急停车
+ * 仅 loop() 单线程读写，无需 volatile */
+static bool g_ble_connected_prev = false;
 
 /* BLE 控制回调：把 ControlPayload 转成 motor_set_target 调用 */
 static void on_control(const ControlPayload* ctrl, void* user) {
@@ -71,28 +72,28 @@ void setup() {
 
     ok = xTaskCreatePinnedToCore(
         camera_task, "camera_task", TASK_STACK_CAMERA,
-        g_frame_queue, 1, nullptr, TASK_CORE_CAMERA);
+        g_frame_queue, 2, nullptr, TASK_CORE_CAMERA);
     Serial.printf("[main] camera_task 创建: %s (core=%d, stack=%d)\n",
                   ok == pdPASS ? "OK" : "FAIL",
                   TASK_CORE_CAMERA, TASK_STACK_CAMERA);
 
     ok = xTaskCreatePinnedToCore(
         speed_task, "speed_task", TASK_STACK_SPEED,
-        nullptr, 1, nullptr, TASK_CORE_SPEED);
+        nullptr, 3, nullptr, TASK_CORE_SPEED);
     Serial.printf("[main] speed_task 创建: %s (core=%d, stack=%d)\n",
                   ok == pdPASS ? "OK" : "FAIL",
                   TASK_CORE_SPEED, TASK_STACK_SPEED);
 
     ok = xTaskCreatePinnedToCore(
         motor_task, "motor_task", TASK_STACK_MOTOR,
-        nullptr, 1, nullptr, TASK_CORE_MOTOR);
+        nullptr, 3, nullptr, TASK_CORE_MOTOR);
     Serial.printf("[main] motor_task 创建: %s (core=%d, stack=%d)\n",
                   ok == pdPASS ? "OK" : "FAIL",
                   TASK_CORE_MOTOR, TASK_STACK_MOTOR);
 
     ok = xTaskCreatePinnedToCore(
         ble_task, "ble_task", TASK_STACK_BLE,
-        g_frame_queue, 1, nullptr, TASK_CORE_BLE);
+        g_frame_queue, 2, nullptr, TASK_CORE_BLE);
     Serial.printf("[main] ble_task 创建: %s (core=%d, stack=%d)\n",
                   ok == pdPASS ? "OK" : "FAIL",
                   TASK_CORE_BLE, TASK_STACK_BLE);

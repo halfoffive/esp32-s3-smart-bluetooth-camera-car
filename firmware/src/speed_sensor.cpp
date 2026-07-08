@@ -35,11 +35,15 @@ static portMUX_TYPE g_speed_mux = portMUX_INITIALIZER_UNLOCKED;
  * ISR 内仅做自增，保持极短，避免占用中断时间。
  * ============================================================ */
 static void IRAM_ATTR isr_left() {
+    portENTER_CRITICAL_ISR(&g_speed_mux);
     g_left_pulses++;
+    portEXIT_CRITICAL_ISR(&g_speed_mux);
 }
 
 static void IRAM_ATTR isr_right() {
+    portENTER_CRITICAL_ISR(&g_speed_mux);
     g_right_pulses++;
+    portEXIT_CRITICAL_ISR(&g_speed_mux);
 }
 
 /* ============================================================
@@ -82,11 +86,13 @@ SpeedData speed_sensor_get() {
  * ============================================================ */
 void speed_task(void* arg) {
     (void)arg;
+    TickType_t last_wake = xTaskGetTickCount();
+    const TickType_t period = pdMS_TO_TICKS(CONTROL_PERIOD_MS);
     uint32_t last_ms = millis();
 
-    while (true) {
-        // 固定 10ms 节拍
-        vTaskDelay(pdMS_TO_TICKS(CONTROL_PERIOD_MS));
+    for (;;) {
+        // 固定 10ms 节拍（vTaskDelayUntil 周期模式，与 motor_task 对齐）
+        vTaskDelayUntil(&last_wake, period);
 
         uint32_t now_ms = millis();
         uint32_t delta_ms = now_ms - last_ms;
@@ -110,10 +116,18 @@ void speed_task(void* arg) {
         uint32_t left_rpm_u  = (left_pulses  * 60000UL) / (delta_ms * ENCODER_SLOTS);
         uint32_t right_rpm_u = (right_pulses * 60000UL) / (delta_ms * ENCODER_SLOTS);
 
+        // 饱和到 int16 范围，避免有符号溢出为负值
+        if (left_rpm_u  > 32767) left_rpm_u  = 32767;
+        if (right_rpm_u > 32767) right_rpm_u = 32767;
+
         // 线速度 v_mm_s = π × WHEEL_DIAMETER_MM × RPM / 60
         float wheel_circ_mm = (float)M_PI * (float)WHEEL_DIAMETER_MM;
         float left_v_mm_s   = wheel_circ_mm * (float)left_rpm_u  / 60.0f;
         float right_v_mm_s  = wheel_circ_mm * (float)right_rpm_u / 60.0f;
+
+        // 线速度同样饱和到 int16 范围
+        if (left_v_mm_s  > 32767.0f) left_v_mm_s  = 32767.0f;
+        if (right_v_mm_s > 32767.0f) right_v_mm_s = 32767.0f;
 
         // 角速度 ω = (v_right − v_left) / WHEEL_TRACK_MM  (rad/s)
         // 单位自洽: (mm/s) / mm = 1/s = rad/s

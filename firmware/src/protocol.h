@@ -1,7 +1,7 @@
 /**
  * protocol.h - 智能蓝牙摄像头小车 二进制协议定义
  *
- * 帧格式（小端字节序，ESP32-S3 native LE）:
+ * 帧格式（LEN 为大端序，LEN_HI 在前）:
  *   偏移  字段      长度  说明
  *   0     SYNC0     1     固定 0xAA
  *   1     SYNC1     1     固定 0x55
@@ -120,8 +120,8 @@ PROTO_STATIC_ASSERT(sizeof(struct TelemetryPayload) == 12, "TelemetryPayload mus
  * 总包长 = LEN + 5；CRC 输入区间 [2 .. len-2]，长度 = len - 3
  */
 static inline bool proto_validate(const uint8_t* buf, size_t len) {
-    /* 最小包：SYNC(2) + LEN(2) + CMD(1) + CRC(1) = 7 字节（LEN=1, 无载荷） */
-    if (buf == NULL || len < 7) return false;
+    /* 最小包：SYNC(2) + LEN(2) + CMD(1) + CRC(1) = 6 字节（LEN=1, 无载荷） */
+    if (buf == NULL || len < 6) return false;
     if (buf[0] != PROTO_SYNC0) return false;
     if (buf[1] != PROTO_SYNC1) return false;
 

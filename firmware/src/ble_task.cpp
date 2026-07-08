@@ -64,13 +64,14 @@ class SmartCarServerCallbacks : public BLEServerCallbacks {
  * ============================================================ */
 class ControlCharacteristicCallbacks : public BLECharacteristicCallbacks {
     void onWrite(BLECharacteristic* pChar) override {
-        // Arduino-ESP32 core 3.x 的 NimBLE 栈：getValue() 返回 Arduino String，
-        // 需要 .c_str() 才能隐式构造 std::string。
-        std::string value = pChar->getValue().c_str();
-        if (value.empty()) return;
-
-        const uint8_t* buf = reinterpret_cast<const uint8_t*>(value.data());
-        size_t len = value.size();
+        // Arduino-ESP32 core 3.x 的 NimBLE 栈：getValue() 返回 Arduino String。
+        // 必须 .length() + .c_str() 二进制安全读取，避免 .c_str() 在
+        // LEN_HI=0x00 等内部 0x00 字节处截断（std::string 构造同样会截断）。
+        String raw = pChar->getValue();
+        size_t len = raw.length();
+        // 最小包 SYNC(2)+LEN(2)+CMD(1)+CRC(1)=6 字节
+        if (len < 6) return;
+        const uint8_t* buf = reinterpret_cast<const uint8_t*>(raw.c_str());
 
         // 1) CRC 校验
         if (!proto_validate(buf, len)) {
@@ -247,7 +248,10 @@ void ble_task(void* arg) {
         // 从队列取一帧（阻塞最多 100ms）
         CameraFrame* frame = nullptr;
         if (xQueueReceive(frame_q, &frame, pdMS_TO_TICKS(100)) == pdTRUE && frame != nullptr) {
-            send_image_frame(frame);
+            // 仅在客户端订阅图像 NOTIFY 时发送；未订阅则跳过发送但消费队列防泄漏
+            if (g_img_char->getSubscribedCount() > 0) {
+                send_image_frame(frame);
+            }
             // 释放 camera_task malloc 的内存
             free(frame->data);
             free(frame);

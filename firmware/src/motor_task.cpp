@@ -100,6 +100,13 @@ bool motor_init() {
 }
 
 void motor_set_target(int8_t direction, int8_t turn, uint8_t speed_pct) {
+    // 入口饱和截断，防止越界值导致 PWM 计算异常
+    if (direction < -1) direction = -1;
+    if (direction > 1) direction = 1;
+    if (turn < -1) turn = -1;
+    if (turn > 1) turn = 1;
+    if (speed_pct > 100) speed_pct = 100;
+
     g_direction = direction;
     g_turn = turn;
     g_speed_pct = speed_pct;
@@ -197,9 +204,9 @@ void motor_task(void* arg) {
             stop_right_dir();
         }
 
-    /* 7. 写 LEDC PWM */
-    ledcWrite(MOTOR_L_ENA_GPIO, left_pwm);
-    ledcWrite(MOTOR_R_ENB_GPIO, right_pwm);
+        /* 7. 写 LEDC PWM */
+        ledcWrite(MOTOR_L_ENA_GPIO, left_pwm);
+        ledcWrite(MOTOR_R_ENB_GPIO, right_pwm);
 
         /* 8. 遥测上报（每周期） */
         TelemetryPayload telem;

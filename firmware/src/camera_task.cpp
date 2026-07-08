@@ -134,7 +134,11 @@ void camera_task(void* arg) {
                 free(old->data);
                 free(old);
             }
-            xQueueSend(frame_queue, &frame, 0);
+            // 二次投递仍可能失败（极端竞态），失败时释放 frame 避免内存泄漏
+            if (xQueueSend(frame_queue, &frame, 0) != pdTRUE) {
+                free(frame->data);
+                free(frame);
+            }
             dropped_frames++;
             if ((dropped_frames & 0x3F) == 0) {
                 Serial.printf("[camera] queue full, dropped %u frames\n",
