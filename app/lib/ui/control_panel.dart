@@ -185,12 +185,13 @@ class _ControlPanelBodyState extends ConsumerState<_ControlPanelBody> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final isDesktop =
         Platform.isWindows || Platform.isLinux || Platform.isMacOS;
     final isMobile = Platform.isAndroid || Platform.isIOS;
 
     return Container(
-      color: AppColors.surface,
+      color: cs.surfaceContainerHighest,
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
       child: Column(
         children: [
@@ -208,7 +209,7 @@ class _ControlPanelBodyState extends ConsumerState<_ControlPanelBody> {
                 icon: const Icon(Icons.stop_circle_outlined, size: 20),
                 label: const Text('紧急停车'),
                 style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.danger,
+                  backgroundColor: HudStatus.dangerOf(context),
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(
                     horizontal: 20,
@@ -260,16 +261,17 @@ class _ControlPanelBodyState extends ConsumerState<_ControlPanelBody> {
 
   /// 体感模式提示
   Widget _buildTiltHint() {
+    final cs = Theme.of(context).colorScheme;
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.screen_rotation, size: 64, color: AppColors.accent),
+          Icon(Icons.screen_rotation, size: 64, color: cs.primary),
           const SizedBox(height: 16),
           Text(
             '请倾斜手机操控',
             style: TextStyle(
-              color: AppColors.hudText,
+              color: cs.onSurface,
               fontSize: 20,
               fontWeight: FontWeight.w600,
             ),
@@ -277,7 +279,7 @@ class _ControlPanelBodyState extends ConsumerState<_ControlPanelBody> {
           const SizedBox(height: 8),
           Text(
             '前倾前进 · 后倾后退 · 左右倾转向',
-            style: TextStyle(color: AppColors.hudTextDim, fontSize: 13),
+            style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13),
           ),
         ],
       ),
@@ -286,6 +288,7 @@ class _ControlPanelBodyState extends ConsumerState<_ControlPanelBody> {
 
   /// 键盘模式提示卡片（W A S D）
   Widget _buildKeyboardHint() {
+    final cs = Theme.of(context).colorScheme;
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -293,7 +296,7 @@ class _ControlPanelBodyState extends ConsumerState<_ControlPanelBody> {
           Text(
             '键盘操控',
             style: TextStyle(
-              color: AppColors.hudText,
+              color: cs.onSurface,
               fontSize: 18,
               fontWeight: FontWeight.w600,
             ),
@@ -314,7 +317,7 @@ class _ControlPanelBodyState extends ConsumerState<_ControlPanelBody> {
           const SizedBox(height: 16),
           Text(
             '方向键也可用 · 默认速度 80%',
-            style: TextStyle(color: AppColors.hudTextDim, fontSize: 12),
+            style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12),
           ),
         ],
       ),
@@ -323,20 +326,21 @@ class _ControlPanelBodyState extends ConsumerState<_ControlPanelBody> {
 
   /// 单个按键卡片
   Widget _buildKey(String label) {
+    final cs = Theme.of(context).colorScheme;
     return Container(
       margin: const EdgeInsets.all(4),
       width: 48,
       height: 48,
       decoration: BoxDecoration(
-        color: AppColors.surfaceVariant,
+        color: cs.surfaceContainerHigh,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.accent.withValues(alpha: 0.3)),
+        border: Border.all(color: cs.primary.withValues(alpha: 0.3)),
       ),
       alignment: Alignment.center,
       child: Text(
         label,
         style: TextStyle(
-          color: AppColors.hudText,
+          color: cs.onSurface,
           fontSize: 20,
           fontWeight: FontWeight.bold,
         ),

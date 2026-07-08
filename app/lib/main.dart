@@ -7,9 +7,17 @@ import 'ui/control_panel.dart';
 import 'ui/settings_screen.dart';
 import 'ui/telemetry_panel.dart';
 import 'ui/theme.dart';
+import 'ui/theme_mode_controller.dart';
 
-void main() {
-  runApp(const ProviderScope(child: SmartCarApp()));
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  // 启动时恢复用户上次选择的主题模式（默认跟随系统）
+  final container = ProviderContainer();
+  await container.read(themeModeProvider.notifier).load();
+  runApp(UncontrolledProviderScope(
+    container: container,
+    child: const SmartCarApp(),
+  ));
 }
 
 class SmartCarApp extends ConsumerWidget {
@@ -17,9 +25,12 @@ class SmartCarApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final themeMode = ref.watch(themeModeProvider);
     return MaterialApp(
       title: '智能小车遥控',
-      theme: AppTheme.dark(),
+      theme: AppTheme.light(),
+      darkTheme: AppTheme.dark(),
+      themeMode: themeMode,
       debugShowCheckedModeBanner: false,
       home: const HomeScreen(),
       routes: {

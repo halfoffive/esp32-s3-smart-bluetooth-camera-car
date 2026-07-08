@@ -17,6 +17,7 @@ class TelemetryPanel extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final cs = Theme.of(context).colorScheme;
     final Telemetry? t = ref.watch(telemetryStreamProvider).value;
 
     // 当前线速度 = 左右轮平均，mm/s → cm/s
@@ -26,36 +27,37 @@ class TelemetryPanel extends ConsumerWidget {
     final targetCmS = t == null ? null : t.targetSpeedMmS / 10.0;
 
     return Container(
-      color: AppColors.surfaceVariant,
+      color: cs.surfaceContainerHigh,
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
       child: Row(
         children: [
-          _cell('左 RPM', t?.leftRpm.toString()),
-          _cell('右 RPM', t?.rightRpm.toString()),
-          _cell('速度 cm/s', speedCmS?.toStringAsFixed(1)),
-          _cell('目标 cm/s', targetCmS?.toStringAsFixed(1)),
-          _batteryCell(t?.batteryMv ?? 0),
+          _cell(context, '左 RPM', t?.leftRpm.toString()),
+          _cell(context, '右 RPM', t?.rightRpm.toString()),
+          _cell(context, '速度 cm/s', speedCmS?.toStringAsFixed(1)),
+          _cell(context, '目标 cm/s', targetCmS?.toStringAsFixed(1)),
+          _batteryCell(context, t?.batteryMv ?? 0),
         ],
       ),
     );
   }
 
   /// 数据单元格：数值（等宽）+ 标签（小字）。
-  Widget _cell(String label, String? value) {
+  Widget _cell(BuildContext context, String label, String? value) {
+    final cs = Theme.of(context).colorScheme;
     return Expanded(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
             value ?? '——',
-            style: AppTheme.mono(size: 18, color: AppColors.hudText),
+            style: AppTheme.mono(size: 18, color: cs.onSurface),
           ),
           const SizedBox(height: 4),
           Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 10,
-              color: AppColors.hudTextDim,
+              color: cs.onSurfaceVariant,
               fontFamily: 'Inter',
             ),
           ),
@@ -65,7 +67,8 @@ class TelemetryPanel extends ConsumerWidget {
   }
 
   /// 电池单元格：电压按阈值染色。0 视为未测，显示 ——。
-  Widget _batteryCell(int mv) {
+  Widget _batteryCell(BuildContext context, int mv) {
+    final cs = Theme.of(context).colorScheme;
     final hasValue = mv > 0;
     final text = hasValue
         ? '${(mv / 1000).toStringAsFixed(2)} V'
@@ -78,15 +81,15 @@ class TelemetryPanel extends ConsumerWidget {
             text,
             style: AppTheme.mono(
               size: 16,
-              color: _batteryColor(mv),
+              color: _batteryColor(context, mv),
             ),
           ),
           const SizedBox(height: 4),
-          const Text(
+          Text(
             '电池',
             style: TextStyle(
               fontSize: 10,
-              color: AppColors.hudTextDim,
+              color: cs.onSurfaceVariant,
               fontFamily: 'Inter',
             ),
           ),
@@ -96,10 +99,11 @@ class TelemetryPanel extends ConsumerWidget {
   }
 
   /// 电池电压染色：未测=灰 / <6.5V=红 / <7.0V=黄 / 否则=绿
-  Color _batteryColor(int mv) {
-    if (mv == 0) return AppColors.hudTextDim;
-    if (mv < 6500) return AppColors.danger;
-    if (mv < 7000) return AppColors.warn;
-    return AppColors.dataActive;
+  Color _batteryColor(BuildContext context, int mv) {
+    final cs = Theme.of(context).colorScheme;
+    if (mv == 0) return cs.onSurfaceVariant;
+    if (mv < 6500) return HudStatus.dangerOf(context);
+    if (mv < 7000) return HudStatus.warn;
+    return HudStatus.active;
   }
 }

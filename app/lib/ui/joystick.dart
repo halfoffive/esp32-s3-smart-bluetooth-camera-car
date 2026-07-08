@@ -43,6 +43,8 @@ class _JoystickState extends State<Joystick> {
         // 拇指中心活动范围 = 底圆半径 - 拇指半径（让拇指圆不超出底圆）
         _maxRadius = (baseRadius - thumbRadius).clamp(1.0, double.infinity);
 
+        final cs = Theme.of(context).colorScheme;
+
         return GestureDetector(
           behavior: HitTestBehavior.opaque,
           onPanStart: (d) => _update(d.localPosition, center),
@@ -56,6 +58,13 @@ class _JoystickState extends State<Joystick> {
               baseRadius: baseRadius,
               thumbRadius: thumbRadius,
               active: _thumbOffset != Offset.zero,
+              baseFill: cs.surfaceContainerHigh,
+              baseStroke: cs.primary,
+              crossColor: cs.onSurfaceVariant,
+              thumbShadow: cs.surface,
+              thumbIdle: cs.onSurface,
+              thumbActive: cs.primary,
+              thumbHighlight: cs.onSurface,
             ),
           ),
         );
@@ -96,6 +105,13 @@ class _JoystickPainter extends CustomPainter {
     required this.baseRadius,
     required this.thumbRadius,
     required this.active,
+    required this.baseFill,
+    required this.baseStroke,
+    required this.crossColor,
+    required this.thumbShadow,
+    required this.thumbIdle,
+    required this.thumbActive,
+    required this.thumbHighlight,
   });
 
   final Offset center;
@@ -104,13 +120,22 @@ class _JoystickPainter extends CustomPainter {
   final double thumbRadius;
   final bool active;
 
+  // 颜色字段：CustomPainter 无 BuildContext，由调用方从 colorScheme 注入
+  final Color baseFill;
+  final Color baseStroke;
+  final Color crossColor;
+  final Color thumbShadow;
+  final Color thumbIdle;
+  final Color thumbActive;
+  final Color thumbHighlight;
+
   @override
   void paint(Canvas canvas, Size size) {
     // ---- 底圆填充 ----
     canvas.drawCircle(
       center,
       baseRadius,
-      Paint()..color = AppColors.surfaceVariant,
+      Paint()..color = baseFill,
     );
 
     // ---- 底圆边（橙色细环，提示交互区）----
@@ -118,14 +143,14 @@ class _JoystickPainter extends CustomPainter {
       center,
       baseRadius,
       Paint()
-        ..color = AppColors.accent.withValues(alpha: 0.35)
+        ..color = baseStroke.withValues(alpha: 0.35)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.5,
     );
 
     // ---- 十字准星 ----
     final crossPaint = Paint()
-      ..color = AppColors.hudTextDim
+      ..color = crossColor
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1;
     final cross = baseRadius * 0.65;
@@ -144,21 +169,21 @@ class _JoystickPainter extends CustomPainter {
     canvas.drawCircle(
       center,
       2,
-      Paint()..color = AppColors.hudTextDim,
+      Paint()..color = crossColor,
     );
 
     // ---- 拇指圆阴影 ----
     canvas.drawCircle(
       thumb + const Offset(0, 2),
       thumbRadius,
-      Paint()..color = AppColors.bg.withValues(alpha: 0.5),
+      Paint()..color = thumbShadow.withValues(alpha: 0.5),
     );
 
     // ---- 拇指圆主体 ----
     canvas.drawCircle(
       thumb,
       thumbRadius,
-      Paint()..color = active ? AppColors.accent : AppColors.hudText,
+      Paint()..color = active ? thumbActive : thumbIdle,
     );
 
     // ---- 拇指圆内圈高光 ----
@@ -166,7 +191,7 @@ class _JoystickPainter extends CustomPainter {
       thumb,
       thumbRadius * 0.65,
       Paint()
-        ..color = AppColors.hudText.withValues(alpha: 0.25)
+        ..color = thumbHighlight.withValues(alpha: 0.25)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1,
     );
@@ -177,5 +202,12 @@ class _JoystickPainter extends CustomPainter {
       old.thumb != thumb ||
       old.active != active ||
       old.baseRadius != baseRadius ||
-      old.thumbRadius != thumbRadius;
+      old.thumbRadius != thumbRadius ||
+      old.baseFill != baseFill ||
+      old.baseStroke != baseStroke ||
+      old.crossColor != crossColor ||
+      old.thumbShadow != thumbShadow ||
+      old.thumbIdle != thumbIdle ||
+      old.thumbActive != thumbActive ||
+      old.thumbHighlight != thumbHighlight;
 }

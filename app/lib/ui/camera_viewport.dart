@@ -25,7 +25,7 @@ class CameraViewport extends ConsumerWidget {
     final frameAsync = ref.watch(frameStreamProvider);
 
     return Container(
-      color: AppColors.bg,
+      color: Theme.of(context).colorScheme.surface,
       child: Stack(
         fit: StackFit.expand,
         children: [
@@ -151,7 +151,7 @@ class _HudOverlayState extends ConsumerState<_HudOverlay> {
             right: 12,
             child: _HudChip(
               text: '${_frameTimes.length} FPS',
-              color: AppColors.dataActive,
+              color: HudStatus.active,
             ),
           ),
 
@@ -170,14 +170,14 @@ class _HudOverlayState extends ConsumerState<_HudOverlay> {
                       style: AppTheme.mono(
                         size: 34,
                         weight: FontWeight.w700,
-                        color: AppColors.accent,
+                        color: Theme.of(context).colorScheme.primary,
                       ),
                     ),
                     TextSpan(
                       text: ' cm/s',
                       style: AppTheme.mono(
                         size: 12,
-                        color: AppColors.hudTextDim,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                     ),
                   ],
@@ -193,15 +193,16 @@ class _HudOverlayState extends ConsumerState<_HudOverlay> {
   /// 四角 bracket 装饰（FPV 风格）。
   List<Widget> _cornerBrackets() {
     const side = 18.0;
+    final cs = Theme.of(context).colorScheme;
     return [
       Positioned(
         top: 6,
         left: 6,
         child: CustomPaint(
           size: const Size(side, side),
-          painter: const _BracketPainter(
+          painter: _BracketPainter(
             corner: _Corner.topLeft,
-            color: AppColors.accent,
+            color: cs.primary,
           ),
         ),
       ),
@@ -210,9 +211,9 @@ class _HudOverlayState extends ConsumerState<_HudOverlay> {
         right: 6,
         child: CustomPaint(
           size: const Size(side, side),
-          painter: const _BracketPainter(
+          painter: _BracketPainter(
             corner: _Corner.topRight,
-            color: AppColors.accent,
+            color: cs.primary,
           ),
         ),
       ),
@@ -221,9 +222,9 @@ class _HudOverlayState extends ConsumerState<_HudOverlay> {
         left: 6,
         child: CustomPaint(
           size: const Size(side, side),
-          painter: const _BracketPainter(
+          painter: _BracketPainter(
             corner: _Corner.bottomLeft,
-            color: AppColors.accent,
+            color: cs.primary,
           ),
         ),
       ),
@@ -232,9 +233,9 @@ class _HudOverlayState extends ConsumerState<_HudOverlay> {
         right: 6,
         child: CustomPaint(
           size: const Size(side, side),
-          painter: const _BracketPainter(
+          painter: _BracketPainter(
             corner: _Corner.bottomRight,
-            color: AppColors.accent,
+            color: cs.primary,
           ),
         ),
       ),
@@ -259,13 +260,13 @@ class _HudOverlayState extends ConsumerState<_HudOverlay> {
   Color _statusColor(ConnectionStatus s) {
     switch (s) {
       case ConnectionStatus.connected:
-        return AppColors.dataActive;
+        return HudStatus.active;
       case ConnectionStatus.connecting:
       case ConnectionStatus.reconnecting:
       case ConnectionStatus.scanning:
-        return AppColors.warn;
+        return HudStatus.warn;
       case ConnectionStatus.disconnected:
-        return AppColors.danger;
+        return HudStatus.dangerOf(context);
     }
   }
 
@@ -289,8 +290,8 @@ class _HudOverlayState extends ConsumerState<_HudOverlay> {
 class _HudChip extends StatelessWidget {
   const _HudChip({
     required this.text,
+    required this.color,
     this.icon,
-    this.color = AppColors.hudText,
   });
 
   final String text;
@@ -327,13 +328,14 @@ class _Placeholder extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final dim = Theme.of(context).colorScheme.onSurfaceVariant;
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.videocam_off, size: 48, color: AppColors.hudTextDim),
+          Icon(Icons.videocam_off, size: 48, color: dim),
           const SizedBox(height: 12),
-          Text(text, style: const TextStyle(color: AppColors.hudTextDim)),
+          Text(text, style: TextStyle(color: dim)),
         ],
       ),
     );

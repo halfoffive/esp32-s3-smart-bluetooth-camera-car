@@ -5,19 +5,21 @@
 // 顶部说明：这些参数当前仅本地保存，未来版本可下发设备。
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'theme.dart';
+import 'theme_mode_controller.dart';
 
 /// 设置页：PID + 物理参数表单。
-class SettingsScreen extends StatefulWidget {
+class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
 
   @override
-  State<SettingsScreen> createState() => _SettingsScreenState();
+  ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
 }
 
-class _SettingsScreenState extends State<SettingsScreen> {
+class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   final _formKey = GlobalKey<FormState>();
 
   final _kpCtrl = TextEditingController();
@@ -96,6 +98,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(title: const Text('参数设置')),
       body: !_loaded
@@ -105,27 +108,52 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
+                  // 外观段
+                  _sectionTitle('外观'),
+                  ListTile(
+                    leading: const Icon(Icons.brightness_6_outlined),
+                    title: const Text('主题模式'),
+                    subtitle: const Text('默认跟随系统'),
+                  ),
+                  const SizedBox(height: 8),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: SegmentedButton<ThemeMode>(
+                      segments: const [
+                        ButtonSegment(
+                            value: ThemeMode.system, label: Text('系统')),
+                        ButtonSegment(
+                            value: ThemeMode.light, label: Text('浅色')),
+                        ButtonSegment(
+                            value: ThemeMode.dark, label: Text('深色')),
+                      ],
+                      selected: {ref.watch(themeModeProvider)},
+                      onSelectionChanged: (selection) {
+                        ref.read(themeModeProvider.notifier).set(selection.first);
+                      },
+                    ),
+                  ),
+                  const Divider(height: 32),
                   // 顶部说明
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: AppColors.surfaceVariant,
+                      color: cs.surfaceContainerHigh,
                       borderRadius: BorderRadius.circular(6),
                       border: Border.all(
-                        color: AppColors.accent.withValues(alpha: 0.3),
+                        color: cs.primary.withValues(alpha: 0.3),
                       ),
                     ),
                     child: Row(
-                      children: const [
-                        Icon(Icons.info_outline,
-                            size: 18, color: AppColors.accent),
-                        SizedBox(width: 8),
+                      children: [
+                        Icon(Icons.info_outline, size: 18, color: cs.primary),
+                        const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             '这些参数当前仅本地保存，未来版本可下发设备。',
                             style: TextStyle(
                               fontSize: 12,
-                              color: AppColors.hudTextDim,
+                              color: cs.onSurfaceVariant,
                             ),
                           ),
                         ),
@@ -166,10 +194,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
       padding: const EdgeInsets.only(bottom: 8),
       child: Text(
         text,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.w600,
-          color: AppColors.accent,
+          color: Theme.of(context).colorScheme.primary,
           letterSpacing: 1.2,
         ),
       ),
@@ -187,9 +215,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
             integer ? TextInputType.number : const TextInputType.numberWithOptions(decimal: true),
         decoration: InputDecoration(
           labelText: label,
-          labelStyle: const TextStyle(color: AppColors.hudTextDim),
+          labelStyle: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant),
           filled: true,
-          fillColor: AppColors.surfaceVariant,
+          fillColor: Theme.of(context).colorScheme.surfaceContainerHigh,
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(6),
             borderSide: BorderSide.none,
