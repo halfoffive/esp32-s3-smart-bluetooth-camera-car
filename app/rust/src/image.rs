@@ -57,14 +57,11 @@ impl ImageAssembler {
             return None;
         }
 
+        // 重复分片覆盖数据但不重复计数；首次到达才计入计数
         if self.received[idx].is_none() {
-            // 首次到达：计入计数
-            self.received[idx] = Some(chunk.jpeg_bytes);
             self.received_count += 1;
-        } else {
-            // 重复分片：覆盖数据但不重复计数
-            self.received[idx] = Some(chunk.jpeg_bytes);
         }
+        self.received[idx] = Some(chunk.jpeg_bytes);
 
         // 全部分片到齐：按 chunk_idx 顺序拼接并重置
         if !self.received.is_empty() && self.received_count as usize == self.received.len() {

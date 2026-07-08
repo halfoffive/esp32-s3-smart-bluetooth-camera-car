@@ -27,12 +27,11 @@ pub fn create_image_assembler() -> ImageAssembler {
 /// - 遥测：由 Flutter 侧直接 `parse_packet` 取用，这里不处理
 /// - 其它（控制回环 / 未知）：返回 `None`
 pub fn handle_notify_packet(assembler: &mut ImageAssembler, raw: Vec<u8>) -> Option<Vec<u8>> {
-    match crate::ble::parse_packet(&raw) {
-        Some(PacketKind::Image(chunk)) => assembler.push(chunk),
-        Some(PacketKind::Telemetry(_t)) => {
-            // 遥测由 Flutter 侧直接 parse_packet 取用，这里不处理
-            None
-        }
+    // 解析失败（帧不完整 / 校验失败）直接返回 None
+    let packet = crate::ble::parse_packet(&raw)?;
+    match packet {
+        PacketKind::Image(chunk) => assembler.push(chunk),
+        // 遥测由 Flutter 侧直接 parse_packet 取用；控制回环 / 未知：不处理
         _ => None,
     }
 }

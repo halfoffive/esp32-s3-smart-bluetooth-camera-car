@@ -83,6 +83,10 @@ jobs:
       - name: Generate flutter_rust_bridge bindings
         run: cd app && flutter_rust_bridge_codegen generate
 
+      # 9.5. clippy 零警告门槛：任何 clippy 警告即构建失败
+      - name: Run cargo clippy
+        run: cd app/rust && cargo clippy --all-features -- -D warnings
+
       # 10. 生成 Rust 子 crate 文档（不编译依赖、开启全部 feature，要求无警告）
       - name: Generate cargo doc
         run: cd app/rust && cargo doc --no-deps --all-features
@@ -227,6 +231,10 @@ jobs:
       # 10. 生成 Rust ↔ Dart 绑定代码
       - name: Generate flutter_rust_bridge bindings
         run: cd app && flutter_rust_bridge_codegen generate
+
+      # 10.5. clippy 零警告门槛：任何 clippy 警告即构建失败（所有矩阵条目均执行，clippy 轻量且仅涉及 Rust 侧）
+      - name: Run cargo clippy
+        run: cd app/rust && cargo clippy --all-features -- -D warnings
 
       # 11. 安装 Linux 桌面构建依赖（仅 ubuntu runner 需要，apk/linux 共用）
       - name: Install Linux desktop dependencies
