@@ -135,6 +135,7 @@ class BleController extends StateNotifier<BleState> {
   /// 释放资源（ProviderScope dispose 时自动调用）。
   @override
   void dispose() {
+    _userDisconnect = true; // 阻止 stale 回调触发重连
     _cancelAllSubscriptions();
     _reconnectTimer?.cancel();
     _frameAssembler.dispose();
@@ -240,6 +241,7 @@ class BleController extends StateNotifier<BleState> {
 
   /// 连接状态变化回调。
   void _onConnectionStateChange(ConnectionStateUpdate update) {
+    if (!mounted) return;
     switch (update.connectionState) {
       case DeviceConnectionState.connected:
         _onConnected();
@@ -267,6 +269,7 @@ class BleController extends StateNotifier<BleState> {
         deviceId: deviceId,
         mtu: CarDeviceConstants.negotiatedMtu,
       );
+      if (!mounted) return;
 
       // 2) 订阅图像与遥测特征
       final imageChar = _qualifiedChar(
@@ -286,15 +289,21 @@ class BleController extends StateNotifier<BleState> {
         _telemetryParser.handlePacket(Uint8List.fromList(bytes));
       });
 
-      // 3) 写入控制特征占位（零速停机），确认 WRITE 通道可用
-      await sendControl(0, 0, 0);
-
+      // 3) 切换到 connected 状态（使 sendControl 守卫通过）
       _reconnectAttempts = 0;
       state = state.copyWith(
         status: ConnectionStatus.connected,
         errorMessage: null, // 清除旧错误
       );
+
+      // 4) 写入控制特征占位（零速停机），确认 WRITE 通道可用
+      await sendControl(0, 0, 0);
+      if (!mounted) return;
     } catch (e) {
+      // 清理连接订阅，避免断开事件回调到已失效的控制器
+      await _connSub?.cancel();
+      _connSub = null;
+      if (!mounted) return;
       state = state.copyWith(
         status: ConnectionStatus.disconnected,
         errorMessage: '连接初始化失败: $e',
@@ -304,6 +313,7 @@ class BleController extends StateNotifier<BleState> {
 
   /// 连接断开回调：用户主动断开则不重连；异常断开则启动自动重连。
   void _onDisconnected({String? error}) {
+    if (!mounted) return;
     _cancelCharacteristicSubs();
 
     if (_userDisconnect) {
@@ -339,6 +349,7 @@ class BleController extends StateNotifier<BleState> {
 
   /// 单次重连尝试：重新建立连接流。
   void _attemptReconnect() {
+    if (!mounted) return;
     final id = _lastDeviceId;
     if (id == null || _userDisconnect) return;
 

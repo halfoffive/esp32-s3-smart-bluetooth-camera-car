@@ -121,8 +121,20 @@ class TiltController {
     final mag = math.sqrt(effX * effX + effY * effY);
     final speedPct = (mag / maxTilt * 100).round().clamp(0, 100);
 
-    // 节流：距上次发送 < throttleMs 则丢弃
     final now = DateTime.now();
+
+    // speedPct == 0（手机回平）→ 立即发 stop，绕过节流，避免停机指令被丢弃
+    if (speedPct == 0) {
+      _lastSent = now;
+      _controller.add(ControlCommand(
+        direction: direction,
+        turn: turn,
+        speedPct: speedPct,
+      ));
+      return;
+    }
+
+    // 节流：距上次发送 < throttleMs 则丢弃
     if (now.difference(_lastSent).inMilliseconds < throttleMs) return;
     _lastSent = now;
 
