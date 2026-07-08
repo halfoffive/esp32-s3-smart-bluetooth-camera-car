@@ -166,21 +166,49 @@ jobs:
         if: matrix.flutter_target == 'apk'
         shell: bash
         run: |
-          # 兼容 Flutter 3.29+ 的 Kotlin DSL (build.gradle.kts) 与旧版 Groovy (build.gradle)
+          # DSL-aware patch：Kotlin DSL (.gradle.kts) 必须用 `compileSdk = 35`（属性赋值，带 `=`）；
+          # Groovy DSL (.gradle) 必须用 `compileSdk 35`（函数调用风格，不带 `=`）。
+          # 旧实现用单一 sed 同时处理两种文件，会生成非法的 `compileSdk 35`（Kotlin DSL 缺 `=`）。
+
+          # 1) patch app/android/app/build.gradle(.kts) compileSdk -> 35，按扩展名分流
           for f in app/android/app/build.gradle app/android/app/build.gradle.kts; do
             if [ -f "$f" ]; then
-              # 注意：compileSdk 值至少要有一位数字，避免把 `compileSdk = flutter.compileSdkVersion` 改成
-              # 非法的 `compileSdk = 35flutter.compileSdkVersion`
-              sed -i -E 's/compileSdk( |=)([0-9]+)/compileSdk\135/g; s/compileSdk = flutter\.compileSdkVersion/compileSdk = 35/g; s/compileSdkVersion flutter\.compileSdkVersion/compileSdkVersion 35/g' "$f"
+              case "$f" in
+                *.gradle.kts)
+                  # Kotlin DSL: 必须保留 `=`
+                  sed -i -E 's/compileSdk[[:space:]]*=[[:space:]]*[0-9]+/compileSdk = 35/g; s/compileSdk[[:space:]]*=[[:space:]]*flutter\.compileSdkVersion/compileSdk = 35/g' "$f"
+                  ;;
+                *.gradle)
+                  # Groovy DSL: 不带 `=`
+                  sed -i -E 's/compileSdk[[:space:]]+[0-9]+/compileSdk 35/g; s/compileSdk[[:space:]]+flutter\.compileSdkVersion/compileSdk 35/g; s/compileSdkVersion[[:space:]]+flutter\.compileSdkVersion/compileSdkVersion 35/g' "$f"
+                  ;;
+              esac
             fi
           done
-          # 在根 build.gradle(.kts) 注入 subprojects 块，强制所有插件模块 compileSdk 35
+
+          # 2) 在根 build.gradle(.kts) 注入 subprojects 块，强制所有插件模块 compileSdk 35，同样 DSL-aware
           ROOT_GRADLE=""
           for f in app/android/build.gradle app/android/build.gradle.kts; do
             if [ -f "$f" ]; then ROOT_GRADLE="$f"; break; fi
           done
           if [ -n "$ROOT_GRADLE" ]; then
-            cat >> "$ROOT_GRADLE" <<'EOF'
+            case "$ROOT_GRADLE" in
+              *.gradle.kts)
+                cat >> "$ROOT_GRADLE" <<'EOF'
+
+          subprojects {
+              afterEvaluate {
+                  if (hasProperty("android")) {
+                      (extensions.findByName("android") as com.android.build.gradle.BaseExtension).apply {
+                          compileSdk = 35
+                      }
+                  }
+              }
+          }
+          EOF
+                ;;
+              *.gradle)
+                cat >> "$ROOT_GRADLE" <<'EOF'
 
           subprojects {
               afterEvaluate { project ->
@@ -192,6 +220,8 @@ jobs:
               }
           }
           EOF
+                ;;
+            esac
           fi
 
       # 10. 生成 Rust ↔ Dart 绑定代码
