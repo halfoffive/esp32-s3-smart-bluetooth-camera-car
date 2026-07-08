@@ -24,9 +24,15 @@ on:
       - '.github/workflows/firmware.yml'
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       # 1. 检出仓库代码
@@ -52,6 +58,7 @@ jobs:
         with:
           path: ~/.platformio
           key: pio-${{ runner.os }}-${{ hashFiles('firmware/platformio.ini') }}
+          restore-keys: pio-${{ runner.os }}-
 
       # 5. 编译固件（-d firmware 指定工程目录，-e esp32s3-ci 选择 CI 环境）
       - name: Build firmware
