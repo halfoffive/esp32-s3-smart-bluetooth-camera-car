@@ -10,8 +10,8 @@
 ## 集成方式
 
 - crate 名 `rust_lib`，crate-type `["staticlib", "cdylib", "rlib"]`（flutter_rust_bridge 默认约定）
-- 接口写在 `src/api/` 下，由 `flutter_rust_bridge_codegen generate` 生成 `frb_generated.rs` 与 Dart 侧胶水代码
-- codegen 跑之前本 crate 不可独立编译（缺 `frb_generated.rs` 与 `api.rs`），属正常工作流
+- 接口写在 `src/api.rs` 下，由 `flutter_rust_bridge_codegen generate` 生成 `frb_generated.rs` 与 Dart 侧胶水代码
+- codegen 跑之前本 crate 不可独立编译（缺 `frb_generated.rs`），属正常工作流
 - `flutter_rust_bridge` 版本以 codegen 生成为准（当前 latest 2.x）
 
 参考：<https://cjycode.com/flutter_rust_bridge/>

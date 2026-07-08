@@ -100,7 +100,3 @@ app/
   - **键盘模式**：WASD / 方向键，按下立即下发，松开触发平滑减速
 - **紧急停车**：主界面紧急停车按钮，立即发送 stop 指令（speed_pct=0）
 - 输入去抖 + 速率限制，避免 BLE 写入过载
-
-## 后续任务
-
-- Task 13：GitHub Actions `app.yml` 流水线（构建 APK + Linux/Windows/macOS 桌面二进制 + `cargo doc` 上传 artifact）

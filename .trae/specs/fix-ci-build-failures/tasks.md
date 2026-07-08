@@ -20,7 +20,7 @@
 - [x] Task 3: 在 app.yml 中追加 Android SDK patch 步骤
   - [x] 3.1 在 `cargo-doc` job 的 `Bootstrap Flutter platforms` 之后追加 patch 步骤：用 `sed` 将 `android/app/build.gradle` 的 `compileSdk` 提升到 35
   - [x] 3.2 在 `cargo-doc` job 同位置追加注入 `subprojects` 块到 `android/build.gradle`（强制所有模块 compileSdk 35）
-  - [x] 3.3 在 `build-matrix` job 的 `Bootstrap Flutter platforms` 之后追加相同 patch 步骤（仅对 apk target 生效即可，但为简洁起见对所有矩阵条目执行）
+  - [x] 3.3 在 `build-matrix` job 的 `Bootstrap Flutter platforms` 之后追加相同 patch 步骤（仅对 apk target 执行，已加 `if: matrix.flutter_target == 'apk'`）
   - 验证：`flutter build apk --release` 不再报 `compile against version 34 or later` 错误
 
 ## 文档同步
