@@ -30,7 +30,6 @@
 - 修复 `app/android/` 等平台目录因 `.gitkeep` 残留，导致 CI 中 `flutter create .` 未完整生成 `android/app/build.gradle`，进而使 Android SDK patch 步骤报 `No such file or directory`。
 - 限制 `app.yml` 中 Android compileSdk patch 仅在 `build-matrix` 的 `apk` 条目执行；`cargo-doc` job 与桌面平台构建不再执行该步骤。
 - 修复 Windows runner 上 `rm -rf` 命令不兼容 PowerShell 导致 "Clean platform directories" 步骤失败（添加 `shell: bash`）
-- 修复 Android compileSdk patch 步骤在 `app/android/app/build.gradle` 缺失时隐式失败（增加 `test -f` 文件存在性守卫，缺失时输出明确错误信息）
 - 修复 CI 中 Android compileSdk patch 步骤无法找到 build.gradle 的问题（Flutter 3.44.4+ 默认生成 build.gradle.kts）；改为自动检测 .gradle 或 .gradle.kts 扩展名。
 
 ## [0.1.0] - 2026-07-04

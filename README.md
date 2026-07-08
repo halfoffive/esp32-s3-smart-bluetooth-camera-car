@@ -20,8 +20,8 @@
 ## 接线表
 | ESP32-S3 GPIO | 连接目标 | 说明 |
 |---|---|---|
-| GPIO 1  | L298N ENA | 左轮 PWM（LEDC CH0） |
-| GPIO 2  | L298N ENB | 右轮 PWM（LEDC CH1） |
+| GPIO 1  | L298N ENA | 左轮 PWM（LEDC CH1） |
+| GPIO 2  | L298N ENB | 右轮 PWM（LEDC CH2） |
 | GPIO 41 | L298N IN1 | 左轮方向 |
 | GPIO 42 | L298N IN2 | 左轮方向 |
 | GPIO 45 | L298N IN3 | 右轮方向 |
