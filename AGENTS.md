@@ -83,6 +83,8 @@ cargo doc --no-deps --open            # 本地浏览
 - `#[frb(named_args)]` **不是** frb v2 的合法属性（frb v1 旧属性，v2 已移除）。frb v2 **默认就生成 Dart 命名参数**，反向切换位置参数用 `#[frb(positional)]`。使用 `named_args` 会导致 `flutter_rust_bridge_codegen generate` panic，所有平台 CI 失败。
 - `esp_camera` 的 `ledc_channel` 不得用 `LEDC_CHANNEL_0`/`1`（会被 `ledcAttach` 自动分配给电机），须用 `LEDC_CHANNEL_2` 避免通道冲突。
 - `concurrency.cancel-in-progress` 对 tag 推送应设为不取消（`${{ !startsWith(github.ref, 'refs/tags/') }}`），避免误取消 release。
+- CI 中 Android compileSdk patch 必须按 Gradle DSL 区分语法：Kotlin DSL（`build.gradle.kts`）使用属性赋值 `compileSdk = 35`（**带 `=`**），Groovy DSL（`build.gradle`）使用函数调用 `compileSdk 35`（**不带 `=`**）。原单条 sed 同时套用两种 DSL 会把 `.gradle.kts` 改成非法的 `compileSdk 35`，Gradle 报 `Unexpected tokens (use ';' to separate expressions on same line)`。`subprojects` 注入块同理须按 DSL 区分。
+- `KeyEventResult` 定义在 `package:flutter/src/widgets/focus_manager.dart`，由 `package:flutter/widgets.dart` 再导出（**不在** `services.dart`）。`keyboard_controller.dart` 用 `show` 子句限定 `widgets.dart` 导入时，必须显式列出 `KeyEventResult`（`import 'package:flutter/widgets.dart' show FocusNode, KeyEventResult;`），否则 Linux/桌面构建报 `Type 'KeyEventResult' not found`。`KeyEvent`/`KeyDownEvent`/`KeyUpEvent`/`LogicalKeyboardKey` 才来自 `services.dart`。
 
 ## BLE 关键约定
 
@@ -95,10 +97,15 @@ cargo doc --no-deps --open            # 本地浏览
 ## 用户强制风格
 
 - **Rust 侧**：函数式编程风格，纯函数优先，写适量中文注释。
-- **Flutter 侧**：Material Design 3，Riverpod 状态管理。
+- **Flutter 侧**：Material Design 3 **默认配色**（`useMaterial3: true`，不设 `colorSchemeSeed` / 自定义种子色），结构色一律取自 `Theme.of(context).colorScheme`；**深浅色默认跟随系统**（`ThemeMode.system`），用户可在设置页切换 系统/浅色/深色（持久化到 `shared_preferences` 键 `car_theme_mode`）；状态语义色（正常/警告/危险）使用 Material 默认色（`Colors.green`/`Colors.amber`/`colorScheme.error`），由 `HudStatus` 承载，不随主题变化。Riverpod 状态管理。
 - **固件**：FreeRTOS 多任务，共享数据用 `volatile` + critical section 保护。
 - **提交**：遵循 Conventional Commits。
 - **AI 改动后**：必须同步更新 `AGENTS.md`、`README.md`、`CHANGELOG.md`。不要把文档留到下次。
+
+## 提交纪律
+
+- **clippy 零警告门槛**：提交前 `cargo clippy --all-features -- -D warnings` 必须通过（退出码 0）；CI 中 `app.yml` 的 `cargo-doc` 与 `build-matrix` job 均已设此门槛，存在警告即构建失败。跨 FFI 的 Rust 函数不得用 `assert`/`panic` 校验参数。
+- **AI 分批提交**：AI 助手完成多关注点改动后 SHALL 按逻辑关注点拆分为多个独立 commit（如 CI 修复 / 主题改造 / clippy 门槛 / 文档各自独立），而非单一大 commit；每个 commit 遵循 Conventional Commits 且独立可编译。不要把无关变更塞进同一 commit。
 
 ## 文档更新义务
 

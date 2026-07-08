@@ -7,10 +7,15 @@
 
 ## [Unreleased]
 
+### Added
+- feat(app): 主题模式设置 —— 设置页新增「外观」段，`SegmentedButton` 切换 系统/浅色/深色，选择持久化到 `shared_preferences`（键 `car_theme_mode`），默认跟随系统（`ThemeMode.system`）。新增 `theme_mode_controller.dart`（Riverpod `StateNotifier<ThemeMode>`）。
+- ci(app): `app.yml` 新增 `cargo clippy --all-features -- -D warnings` 门槛（`cargo-doc` 与 `build-matrix` job 均在 codegen 之后、build/doc 之前执行），clippy 警告即构建失败。
+
 ### Changed
 - ci(firmware): 切换 PlatformIO 平台为 pioarduino 社区发行包（`platform-espressif32` stable），从而获得 Arduino-ESP32 core 3.x，与 `motor_task.cpp` 已迁移的 v3.x LEDC API 对齐；官方 platform 仍绑定 core 2.0.17。
 - ci(app): 为 Flutter Action 启用 `cache: true`，并新增 cargo 缓存（`~/.cargo/registry`、`~/.cargo/git`、`app/rust/target`），减少 CI 重复编译耗时。
 - ci: build-matrix 与 cargo-doc job 显式声明 `permissions: contents: read`，release job 按需授予 `contents: write`，实现最小权限原则。
+- feat(app): Material 3 **默认配色**替代自定义橙黑 HUD 配色 —— 移除 `AppColors` 类与 `colorSchemeSeed`，结构色（背景/表面/主色/文字）一律取自 `Theme.of(context).colorScheme`；状态语义色由新 `HudStatus` 承载（`Colors.green`/`Colors.amber`/`colorScheme.error`）。`AppTheme` 新增 `light()`/`dark()` 双主题，`main.dart` 接入 `theme`/`darkTheme`/`themeMode`。`joystick`/`camera_viewport`/`telemetry_panel`/`control_panel`/`settings_screen` 同步迁移。
 
 ### Fixed
 - fix(app): `pubspec.yaml` 中 `flutter_rust_bridge` 的版本约束 `=2.12.0` 不符合 Dart pub 语法（`=` 是 Cargo 语法），导致 `flutter pub get` 报 `Invalid version constraint` 失败；改为精确版本 `2.12.0`。
@@ -40,6 +45,9 @@
 - fix(app): `ble_controller.dart` 重连状态机加固：`_onDisconnected` 幂等守卫防 `_reconnectAttempts` 双重自增；`_attemptReconnect` 置 `connecting` 防重连失败卡死；`_initGeneration` 计数器 + try/catch/finally 全路径 generation 守卫，防旧 `_onConnected` 从 await 恢复后打断新连接或覆盖特征订阅；`connect()` 重置 `_initializing`。
 - fix(app/rust): 删除 3 处 `#[frb(named_args)]`（`api.rs`/`ble.rs`/`control.rs`），该属性在 frb v2 中不存在（v1 旧属性），导致 `flutter_rust_bridge_codegen generate` panic、所有平台 CI 失败。frb v2 默认即生成 Dart 命名参数。
 - fix(ci/app): `flutter_rust_bridge_codegen generate` 需要 `cargo-expand`，在 `app.yml` 中预装并锁定版本；同时补齐 `freezed_annotation`/`freezed`/`build_runner` 依赖，修复 `MissingDep: Please add freezed to your dev_dependencies` 错误。
+- fix(app): `keyboard_controller.dart` 补回 `widgets.dart` 的 `show FocusNode, KeyEventResult;`（`KeyEventResult` 由 `widgets.dart` 再导出，不在 `services.dart`），修复 Linux/桌面构建报 `Type 'KeyEventResult' not found`。此前一次变更误将其从 `show` 子句移除。
+- fix(ci/app): Android compileSdk patch 按 Gradle DSL 区分语法 —— Kotlin DSL（`build.gradle.kts`）产出 `compileSdk = 35`（带 `=`），Groovy（`build.gradle`）产出 `compileSdk 35`（不带 `=`）；`subprojects` 注入块同步区分。修复原单条 sed 对 `.gradle.kts` 生成非法 `compileSdk 35` 导致 Gradle 报 `Unexpected tokens`。
+- fix(app/rust): 修复 clippy 警告 —— `image.rs` `push()` 合并 if/else 重复赋值（`branches_sharing_code`）；`api.rs` `handle_notify_packet` 用 `?` 扁平化 Option 并合并相同 match 臂（`match_same_arms`）；`ble.rs` `crc8` 补括号（`precedence`）。
 
 ## [0.1.0] - 2026-07-04
 ### Added
