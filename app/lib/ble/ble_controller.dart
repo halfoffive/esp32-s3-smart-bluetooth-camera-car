@@ -139,7 +139,6 @@ class BleController extends StateNotifier<BleState> {
   @override
   void dispose() {
     _cancelAllSubscriptions();
-    _scanTimer?.cancel();
     _reconnectTimer?.cancel();
     _frameAssembler.dispose();
     _telemetryParser.dispose();
@@ -202,7 +201,10 @@ class BleController extends StateNotifier<BleState> {
     // 5 秒后停止扫描并收尾（用 Timer 以便 dispose/重扫时取消，避免回调竞态）
     _scanTimer = Timer(const Duration(seconds: 5), () {
       // 状态已离开 scanning（被取消/重置）则不更新，避免回调竞态
-      if (state.status != ConnectionStatus.scanning) return;
+      if (state.status != ConnectionStatus.scanning) {
+        if (!done.isCompleted) done.complete();
+        return;
+      }
       _scanSub?.cancel();
       _scanSub = null;
       _scanTimer = null;
@@ -234,11 +236,12 @@ class BleController extends StateNotifier<BleState> {
     _reconnectAttempts = 0;
     _reconnectTimer?.cancel();
     _reconnectTimer = null;
-    _cancelCharacteristicSubs();
-    _connSub?.cancel();
-    // 重置重入保护：旧 _onConnected 可能仍挂起在 await，
-    // 切换设备后新 _onConnected 不应被旧 _initializing=true 吞掉。
+    // 清理旧连接与扫描：避免旧订阅/定时器在 connect 后继续污染状态。
+    _cancelAllSubscriptions();
+    // 重置重入保护并递增代际：旧 _onConnected 挂起在 await 时，
+    // 新连接不应被旧 finally 或 catch 中的 _onDisconnected 干扰。
     _initializing = false;
+    ++_initGeneration;
 
     _lastDeviceId = device.id;
     state = BleState(
@@ -327,8 +330,11 @@ class BleController extends StateNotifier<BleState> {
         // 旧代际恢复：telemetry 订阅后若 generation 已变，不修改状态。
         if (gen != _initGeneration) return;
 
-        // 3) 先置 connected 状态：sendControl 内部校验 status==connected，
+        // 3) 先置 connected 状态：sendControl 内部校验 status==connected,
         //    顺序颠倒会导致占位指令被静默丢弃。
+        //    同时取消可能残留的 _reconnectTimer，避免健康连接被自残式重连打断。
+        _reconnectTimer?.cancel();
+        _reconnectTimer = null;
         _reconnectAttempts = 0;
         state = state.copyWith(
           status: ConnectionStatus.connected,
@@ -424,10 +430,11 @@ class BleController extends StateNotifier<BleState> {
     final id = _lastDeviceId;
     if (id == null || _userDisconnect) return;
 
-    // 重置重入保护：即使旧 _onConnected 仍挂起在 await，
-    // 新重连触发的 _onConnected 也能进入（旧 _onConnected 恢复后
-    // finally 受 generation 守卫，generation 不匹配不会重置 _initializing）。
+    // 重置重入保护并递增代际：即使旧 _onConnected 仍挂起在 await，
+    // 新重连触发的 _onConnected 也能进入，且旧 _onConnected 恢复后
+    // finally 受 generation 守卫保护，不会错误重置 _initializing。
     _initializing = false;
+    ++_initGeneration;
 
     // 重连尝试失败时（_onDisconnected 被触发）status 必须是 connecting 而非
     // reconnecting：幂等守卫只对 reconnecting/disconnected 命中，
