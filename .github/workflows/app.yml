@@ -36,7 +36,7 @@ jobs:
     steps:
       # 1. 检出仓库代码
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       # 2. 配置 Flutter stable 通道（生成绑定需要）
       - name: Setup Flutter
@@ -51,7 +51,7 @@ jobs:
 
       # 4. cargo 缓存：避免每次从零编译 frb codegen 与 Rust 依赖
       - name: Cache cargo
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/registry
@@ -93,7 +93,7 @@ jobs:
 
       # 11. 上传文档产物
       - name: Upload cargo doc
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: cargo-doc
           path: app/rust/target/doc
@@ -123,7 +123,7 @@ jobs:
     steps:
       # 1. 检出仓库代码
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       # 2. 配置 Flutter stable 通道
       - name: Setup Flutter
@@ -138,7 +138,7 @@ jobs:
 
       # 4. cargo 缓存：避免每次从零编译 frb codegen 与 Rust 依赖
       - name: Cache cargo
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/registry
@@ -271,28 +271,28 @@ jobs:
       # 15. 上传构建产物（按平台区分命名）
       - name: Upload Android artifact
         if: matrix.flutter_target == 'apk'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: app-android
           path: app/build/app/outputs/flutter-apk/app-release.apk
 
       - name: Upload Linux artifact
         if: matrix.flutter_target == 'linux'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: app-linux
           path: app/build/linux/x64/release/bundle/*
 
       - name: Upload Windows artifact
         if: matrix.flutter_target == 'windows'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: app-windows
           path: app/build/windows/x64/runner/Release/*
 
       - name: Upload macOS artifact
         if: matrix.flutter_target == 'macos'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: app-macos
           path: app/build/macos/Build/Products/Release/*.app
@@ -307,7 +307,7 @@ jobs:
     steps:
       # 下载所有构建产物到 artifacts/ 目录（每个 artifact 一个子目录）
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           pattern: 'app-*'
           path: artifacts
