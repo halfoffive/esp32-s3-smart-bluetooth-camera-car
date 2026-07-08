@@ -179,6 +179,7 @@ class BleController extends StateNotifier<BleState> {
         }
       },
       onError: (Object e) {
+        if (!mounted) return;
         if (!done.isCompleted) {
           state = BleState(
             status: ConnectionStatus.disconnected,
@@ -191,6 +192,7 @@ class BleController extends StateNotifier<BleState> {
 
     // 5 秒后停止扫描并收尾
     Future<void>.delayed(const Duration(seconds: 5), () {
+      if (!mounted) return;
       _scanSub?.cancel();
       _scanSub = null;
       if (!done.isCompleted) {
@@ -269,7 +271,7 @@ class BleController extends StateNotifier<BleState> {
         deviceId: deviceId,
         mtu: CarDeviceConstants.negotiatedMtu,
       );
-      if (!mounted) return;
+      if (!mounted || _userDisconnect) return;
 
       // 2) 订阅图像与遥测特征
       final imageChar = _qualifiedChar(
@@ -298,7 +300,7 @@ class BleController extends StateNotifier<BleState> {
 
       // 4) 写入控制特征占位（零速停机），确认 WRITE 通道可用
       await sendControl(0, 0, 0);
-      if (!mounted) return;
+      if (!mounted || _userDisconnect) return;
     } catch (e) {
       // 清理连接订阅，避免断开事件回调到已失效的控制器
       await _connSub?.cancel();
@@ -307,7 +309,7 @@ class BleController extends StateNotifier<BleState> {
       _imageSub = null;
       await _telemetrySub?.cancel();
       _telemetrySub = null;
-      if (!mounted) return;
+      if (!mounted || _userDisconnect) return;
       state = state.copyWith(
         status: ConnectionStatus.disconnected,
         errorMessage: '连接初始化失败: $e',
