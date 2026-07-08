@@ -10,8 +10,9 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  # flutter_rust_bridge 集成：Dart<->Rust 胶水代码由 codegen 生成（与 Cargo.toml =2.12.0 对齐）
-  flutter_rust_bridge: =2.12.0
+  # flutter_rust_bridge 集成：Dart<->Rust 胶水代码由 codegen 生成（与 Cargo.toml =2.12.0 对齐）。
+  # 注意：Dart 版本约束不使用 '=' 前缀，精确版本直接写 "2.12.0"。
+  flutter_rust_bridge: 2.12.0
   # BLE 扫描 / 连接 / GATT 读写
   flutter_reactive_ble: ^5.3.1
   # 加速度计（手机体感操控）

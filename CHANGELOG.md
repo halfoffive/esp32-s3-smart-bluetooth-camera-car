@@ -14,6 +14,7 @@
 - ci: build-matrix 与 cargo-doc job 显式声明 `permissions: contents: read`，release job 按需授予 `contents: write`，实现最小权限原则。
 
 ### Fixed
+- fix(app): `pubspec.yaml` 中 `flutter_rust_bridge` 的版本约束 `=2.12.0` 不符合 Dart pub 语法（`=` 是 Cargo 语法），导致 `flutter pub get` 报 `Invalid version constraint` 失败；改为精确版本 `2.12.0`。
 - fix(app): `ble_controller.dart` 修复多个状态机竞态：connect() 取消残留扫描订阅/定时器；startScan() 超时回调早退时补 complete 防止 Future 永久挂起；_onConnected() 置 connected 前取消残留 _reconnectTimer，避免健康连接被自残式重连断开；connect() 与 _attemptReconnect() 重置 _initializing 时同步递增 _initGeneration，防止旧 _onConnected 从 await 恢复后干扰新连接。
 - fix(app): `keyboard_controller.dart` 移除 `widgets.dart` 中对 `KeyEventResult` 的 show import（由 `services.dart` 全量提供），避免潜在编译错误。
 - fix(ci): 将 `actions/checkout`、`upload-artifact`、`download-artifact`、`cache`、`setup-python` 修正到实际存在的稳定大版本（`@v4`/`@v5`），修复因 v7/v6 标签不存在导致 CI workflow 解析失败。
