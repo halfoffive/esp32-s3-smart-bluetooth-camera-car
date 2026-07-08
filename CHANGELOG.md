@@ -25,6 +25,12 @@
 - fix(ci/app): 在 `flutter create .` 之后追加 Patch Android compileSdk 步骤（`sed` 改 `android/app/build.gradle` + 向 `android/build.gradle` 注入 `subprojects` 块），将 `compileSdk` 提升到 35，修复 `:reactive_ble_mobile` 因 AndroidX 1.7.x 依赖要求 SDK 34+ 导致的 `checkReleaseAarMetadata` 失败。
 - 修复 `app/android/` 等平台目录因 `.gitkeep` 残留，导致 CI 中 `flutter create .` 未完整生成 `android/app/build.gradle`，进而使 Android SDK patch 步骤报 `No such file or directory`。
 - 限制 `app.yml` 中 Android compileSdk patch 仅在 `build-matrix` 的 `apk` 条目执行；`cargo-doc` job 与桌面平台构建不再执行该步骤。
+- fix(ci): `Clean platform directories` 步骤加 `shell: bash`，修复 Windows runner 上 `rm -rf` 失败；`download-artifact` 升级至 v7.0.1；`cargo install` 锁定 `--version 2.12.0 --locked`；新增 `permissions: contents: write` 与 `concurrency`；firmware cache 加 `restore-keys`。
+- fix(ci): Patch Android compileSdk 兼容 Flutter 3.29+ 的 `build.gradle.kts`；`concurrency.cancel-in-progress` 对 tag 推送不取消以保护 release；macOS `rust_target` 改为 `aarch64-apple-darwin`；release job 删除多余 Checkout 并限定 `pattern: app-*`。
+- fix(firmware): `ble_task.cpp` onWrite 改用 `String.length()` 二进制安全读取，修复 `LEN_HI=0x00` 被 `c_str()` 截断导致所有控制帧失效；启用 `-DUSE_NIMBLE`；ISR 自增进入 `portENTER_CRITICAL_ISR` 临界区；`speed_task` 改用 `vTaskDelayUntil`；RPM 转 int16 前饱和防溢出；`camera_task` 队列二次投递失败释放内存；`motor_set_target` 入口饱和校验；任务优先级调整（motor/speed=3, camera/ble=2）。
+- fix(firmware): 摄像头 LEDC 通道改为 `LEDC_CHANNEL_2`/`LEDC_TIMER_2`，避免抢占电机 ENA 通道导致左轮失控；JPEG 帧缓冲改用 PSRAM；PID 重置分支不再清零 `last_error`；`onDisconnect` 直接 `motor_stop()`；`send_image_frame` 循环内检查 `g_connected`；`esp32-camera` 锁定 `^2.4.0`；`partitions.csv` fr 分区补 `spiffs` 子类型；删除 `angular_mdps` 死字段。
+- fix(app): `flutter_rust_bridge.yaml` 补 `crate::image`；`parse_packet` 加 `len<1` 校验防 panic；`encode_control`/`parse_packet`/`handle_notify_packet` 加 `#[frb(named_args)]`；`startScan` 改 `Timer` 可取消并加状态守卫；`_onConnected` 先置 connected 再写入且失败统一进重连；订阅流补 `onError`；`frame_stream` 加 `isClosed` 检查与 `try/catch`；`_onJoystick` 加 80ms 节流；`tilt_controller` stop 指令绕过节流；`camera_viewport` FPS 定时归零；`encode_control` 返回 `Result` 防 FFI panic；`image.rs` 拒绝 `total_chunks==0`；移除未使用依赖。
+- docs: `CHANGELOG.md` 链接占位符替换为实际仓库；`smart-bt-camera-car` spec/tasks 同步 `esptool.py merge-bin`；`app/rust/README.md` 修正 `api.rs`；`AGENTS.md` mergebin 条目去重、仓库边界补充 fix-ci spec。
 
 ## [0.1.0] - 2026-07-04
 ### Added
