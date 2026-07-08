@@ -253,10 +253,8 @@ void ble_task(void* arg) {
         // 从队列取一帧（阻塞最多 100ms）
         CameraFrame* frame = nullptr;
         if (xQueueReceive(frame_q, &frame, pdMS_TO_TICKS(100)) == pdTRUE && frame != nullptr) {
-            // 仅在客户端订阅图像 NOTIFY 时发送；未订阅则跳过发送但消费队列防泄漏
-            if (g_img_char->getSubscribedCount() > 0) {
-                send_image_frame(frame);
-            }
+            // NimBLE 栈没有 getSubscribedCount()，直接发送；notify() 内部会在无订阅时跳过
+            send_image_frame(frame);
             // 释放 camera_task malloc 的内存
             free(frame->data);
             free(frame);
