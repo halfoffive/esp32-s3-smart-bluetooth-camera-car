@@ -178,32 +178,14 @@ jobs:
             exit 1
           fi
           echo "Patching $APP_GRADLE and $ROOT_GRADLE"
-          sed -i 's/compileSdk = [0-9]*/compileSdk = 35/' "$APP_GRADLE"
+          # 替换 compileSdk 行（兼容字面量数字与 flutter.compileSdkVersion）
+          sed -i 's/compileSdk = .*/compileSdk = 35/' "$APP_GRADLE"
           # 在根 build 文件注入 subprojects 块，强制所有插件模块（含 reactive_ble_mobile）compileSdk 35
+          # 使用 printf 避免 heredoc 在 YAML run: | 中的缩进冲突
           if [[ "$ROOT_GRADLE" == *.kts ]]; then
-            cat >> "$ROOT_GRADLE" <<'KOTLIN_EOF'
-
-subprojects {
-    afterEvaluate {
-        if (extensions.findByName("android") != null) {
-            (extensions.getByName("android") as com.android.build.gradle.BaseExtension).compileSdkVersion(35)
-        }
-    }
-}
-KOTLIN_EOF
+            printf '\nsubprojects {\n    afterEvaluate {\n        if (extensions.findByName("android") != null) {\n            (extensions.getByName("android") as com.android.build.gradle.BaseExtension).compileSdkVersion(35)\n        }\n    }\n}\n' >> "$ROOT_GRADLE"
           else
-            cat >> "$ROOT_GRADLE" <<'GROOVY_EOF'
-
-subprojects {
-    afterEvaluate { project ->
-        if (project.hasProperty("android")) {
-            project.android {
-                compileSdk 35
-            }
-        }
-    }
-}
-GROOVY_EOF
+            printf '\nsubprojects {\n    afterEvaluate { project ->\n        if (project.hasProperty("android")) {\n            project.android {\n                compileSdk 35\n            }\n        }\n    }\n}\n' >> "$ROOT_GRADLE"
           fi
 
       # 11. 生成 Rust ↔ Dart 绑定代码

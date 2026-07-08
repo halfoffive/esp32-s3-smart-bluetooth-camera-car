@@ -81,6 +81,8 @@ cargo doc --no-deps --open            # 本地浏览
 - CI 中 Android compileSdk patch 步骤仅在 `build-matrix` job 的 `apk` 条目执行（`if: matrix.flutter_target == 'apk'`）；`cargo-doc` job 不包含此步骤。
 - CI 中 Android compileSdk patch 步骤应通过 `working-directory: app` 在 Flutter 项目根目录内执行，自动检测 `android/app/build.gradle` 或 `android/app/build.gradle.kts`（Flutter 3.44.4+ 默认生成 Kotlin DSL），使用相对路径；不要在仓库根目录下使用 `app/android/...` 绝对路径。
 - 向 `build.gradle.kts` 注入 `subprojects` 块时必须使用 Kotlin DSL 语法（`compileSdkVersion(35)` + `extensions.findByName` + 强转 `BaseExtension`），Groovy 语法（`compileSdk 35` 无 `=`）在 Kotlin DSL 中会编译失败；CI 须根据 `.kts` 扩展名分支选择语法。
+- YAML `run: |` 块中不可使用 heredoc（`<<'EOF'`）注入多行文本：heredoc 内容行若缩进为 0 列会提前终止 YAML literal block scalar，导致整个 workflow 文件无法解析；须改用 `printf '\n...\n' >> file` 单行注入。
+- Flutter 3.44.4+ 生成的 `android/app/build.gradle.kts` 中 compileSdk 值为 `flutter.compileSdkVersion`（非字面量数字），sed 正则 `compileSdk = [0-9]*` 会零匹配后插入 35 产生非法 Kotlin；须用 `compileSdk = .*` 全量替换。
 - GitHub Actions Windows runner 默认 shell 为 PowerShell，`rm` 是 `Remove-Item` 的别名，不支持 `-rf` 参数。CI 中所有使用 `rm -rf` 等 Unix 专属命令的 `run` 步骤必须显式指定 `shell: bash`，否则 Windows runner 上会报 `A parameter cannot be found that matches parameter name 'rf'`。
 
 ## BLE 关键约定
