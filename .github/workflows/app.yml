@@ -31,31 +31,40 @@ jobs:
   # Job 1: Rust 文档生成（无业务依赖，快速暴露接口问题）
   cargo-doc:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       # 1. 检出仓库代码
       - name: Checkout
-        uses: actions/checkout@v7.0.0
+        uses: actions/checkout@v4
 
       # 2. 配置 Flutter stable 通道（生成绑定需要）
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: stable
+          cache: true
 
       # 3. 配置 Rust stable 工具链
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      # 4. 安装 flutter_rust_bridge_codegen（cargo 官方推荐安装方式）
+      # 4. cargo 缓存：避免每次从零编译 frb codegen 与 Rust 依赖
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            app/rust/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('app/rust/Cargo.lock', 'app/rust/Cargo.toml') }}
+          restore-keys: cargo-${{ runner.os }}-
+
+      # 5. 安装 flutter_rust_bridge_codegen（cargo 官方推荐安装方式）
       # app/rust/src/frb_generated.rs 与 app/lib/src/rust/ 均为 gitignored，
       # 必须在 CI 中重新生成，否则 lib.rs 的 `mod frb_generated;` 会导致 E0583。
       - name: Install flutter_rust_bridge_codegen
         run: cargo install flutter_rust_bridge_codegen --version 2.12.0 --locked
-
-      # 5. 预装 cargo-expand（flutter_rust_bridge_codegen generate 的传递依赖），
-      #    提前装好可让 generate 步骤跳过传递编译/下载，显著加速 codegen。
-      - name: Install cargo-expand
-        run: cargo install cargo-expand --locked
 
       # 6. 清理平台目录，避免残留文件导致 flutter create . 识别为已有目录而跳过生成
       - name: Clean platform directories
@@ -76,7 +85,7 @@ jobs:
 
       # 10. 上传文档产物
       - name: Upload cargo doc
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v4
         with:
           name: cargo-doc
           path: app/rust/target/doc
@@ -84,6 +93,8 @@ jobs:
   # Job 2: 跨平台构建矩阵（Android APK + Linux/Windows/macOS 桌面）
   build-matrix:
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -104,26 +115,33 @@ jobs:
     steps:
       # 1. 检出仓库代码
       - name: Checkout
-        uses: actions/checkout@v7.0.0
+        uses: actions/checkout@v4
 
       # 2. 配置 Flutter stable 通道
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: stable
+          cache: true
 
       # 3. 配置 Rust stable 工具链
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      # 4. 安装 flutter_rust_bridge_codegen（cargo 官方推荐安装方式）
+      # 4. cargo 缓存：避免每次从零编译 frb codegen 与 Rust 依赖
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            app/rust/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('app/rust/Cargo.lock', 'app/rust/Cargo.toml') }}
+          restore-keys: cargo-${{ runner.os }}-
+
+      # 5. 安装 flutter_rust_bridge_codegen（cargo 官方推荐安装方式）
       - name: Install flutter_rust_bridge_codegen
         run: cargo install flutter_rust_bridge_codegen --version 2.12.0 --locked
-
-      # 5. 预装 cargo-expand（flutter_rust_bridge_codegen generate 的传递依赖），
-      #    提前装好可让 generate 步骤跳过传递编译/下载，显著加速 codegen。
-      - name: Install cargo-expand
-        run: cargo install cargo-expand --locked
 
       # 6. 清理平台目录，避免残留文件导致 flutter create . 识别为已有目录而跳过生成
       - name: Clean platform directories
@@ -143,7 +161,9 @@ jobs:
           # 兼容 Flutter 3.29+ 的 Kotlin DSL (build.gradle.kts) 与旧版 Groovy (build.gradle)
           for f in app/android/app/build.gradle app/android/app/build.gradle.kts; do
             if [ -f "$f" ]; then
-              sed -i 's/compileSdk = [0-9]*/compileSdk = 35/g; s/compileSdk flutter.compileSdkVersion/compileSdk 35/g; s/compileSdkVersion flutter.compileSdkVersion/compileSdkVersion 35/g' "$f"
+              # 注意：compileSdk 值至少要有一位数字，避免把 `compileSdk = flutter.compileSdkVersion` 改成
+              # 非法的 `compileSdk = 35flutter.compileSdkVersion`
+              sed -i -E 's/compileSdk( |=)([0-9]+)/compileSdk\135/g; s/compileSdk = flutter\.compileSdkVersion/compileSdk = 35/g; s/compileSdkVersion flutter\.compileSdkVersion/compileSdkVersion 35/g' "$f"
             fi
           done
           # 在根 build.gradle(.kts) 注入 subprojects 块，强制所有插件模块 compileSdk 35
@@ -172,7 +192,7 @@ jobs:
 
       # 10. 安装 Linux 桌面构建依赖（仅 ubuntu runner 需要，apk/linux 共用）
       - name: Install Linux desktop dependencies
-        if: runner.os == 'Linux'
+        if: matrix.flutter_target == 'linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y ninja-build libgtk-3-dev clang cmake
@@ -205,28 +225,28 @@ jobs:
       # 14. 上传构建产物（按平台区分命名）
       - name: Upload Android artifact
         if: matrix.flutter_target == 'apk'
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v4
         with:
           name: app-android
           path: app/build/app/outputs/flutter-apk/app-release.apk
 
       - name: Upload Linux artifact
         if: matrix.flutter_target == 'linux'
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v4
         with:
           name: app-linux
           path: app/build/linux/x64/release/bundle/*
 
       - name: Upload Windows artifact
         if: matrix.flutter_target == 'windows'
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v4
         with:
           name: app-windows
           path: app/build/windows/x64/runner/Release/*
 
       - name: Upload macOS artifact
         if: matrix.flutter_target == 'macos'
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v4
         with:
           name: app-macos
           path: app/build/macos/Build/Products/Release/*.app
@@ -241,7 +261,7 @@ jobs:
     steps:
       # 下载所有构建产物到 artifacts/ 目录（每个 artifact 一个子目录）
       - name: Download all artifacts
-        uses: actions/download-artifact@v7.0.1
+        uses: actions/download-artifact@v4
         with:
           pattern: 'app-*'
           path: artifacts

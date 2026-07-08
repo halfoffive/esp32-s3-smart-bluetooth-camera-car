@@ -9,10 +9,14 @@
 
 ### Changed
 - ci(firmware): 切换 PlatformIO 平台为 pioarduino 社区发行包（`platform-espressif32` stable），从而获得 Arduino-ESP32 core 3.x，与 `motor_task.cpp` 已迁移的 v3.x LEDC API 对齐；官方 platform 仍绑定 core 2.0.17。
-- ci: bump GitHub Actions 至 Node.js 24 版本（`actions/checkout@v7.0.0`、`actions/cache@v6.1.0`、`actions/setup-python@v6.3.0`、`actions/upload-artifact@v7.0.1`），消除 Node.js 20 deprecation warning。
-- ci(app): 在 `flutter_rust_bridge_codegen generate` 之前新增 `cargo install cargo-expand` 步骤，预先装好传递依赖，避免 codegen 期间重复编译/下载。
+- ci(app): 移除冗余的 `cargo install cargo-expand` 步骤；frb v2.12.0 codegen 不依赖 cargo-expand，且未锁定版本会带来不确定性。
+- ci(app): 为 Flutter Action 启用 `cache: true`，并新增 cargo 缓存（`~/.cargo/registry`、`~/.cargo/git`、`app/rust/target`），减少 CI 重复编译耗时。
+- ci: build-matrix 与 cargo-doc job 显式声明 `permissions: contents: read`，release job 按需授予 `contents: write`，实现最小权限原则。
 
 ### Fixed
+- fix(ci): 将 `actions/checkout`、`upload-artifact`、`download-artifact`、`cache`、`setup-python` 修正到实际存在的稳定大版本（`@v4`/`@v5`），修复因 v7/v6 标签不存在导致 CI workflow 解析失败。
+- fix(ci/app): 修正 Android compileSdk `sed` 正则，要求至少一位数字并显式匹配 `compileSdk = flutter.compileSdkVersion` 引用形式，避免 patch 后生成非法 Kotlin 导致 Gradle 失败。
+- fix(ci/firmware): 将 release 拆分为独立 job，build job 仅保留 `permissions: contents: read`，release job 按需授予 `permissions: contents: write`，符合最小权限原则。
 - fix(app): `pubspec.yaml` 列出的 `flutter_rust_bridge_codegen` 不是 Dart 包（实为 crates.io 上的 Rust crate），导致 `flutter pub get` 失败；移除该 `dev_dependency`，codegen 改由 `cargo install` 提供（CI 已配置）。
 - fix(firmware): `motor_task.cpp` 迁移至 Arduino-ESP32 v3.x LEDC API（`ledcAttach` + `ledcWrite(pin, duty)`），修复 CI 因 `ledcSetup`/`ledcAttachPin`/`LEDC_CHANNEL_*` 在 v3.x 被移除导致的编译失败。
 - fix(app): 修正 `ble_controller.dart` 中 `flutter_reactive_ble` `subscribeToCharacteristic` 的订阅类型（`Stream<List<int>>`），移除已废弃的 `CharacteristicValue` 提取辅助函数。
@@ -25,11 +29,11 @@
 - fix(ci/app): 在 `flutter create .` 之后追加 Patch Android compileSdk 步骤（`sed` 改 `android/app/build.gradle` + 向 `android/build.gradle` 注入 `subprojects` 块），将 `compileSdk` 提升到 35，修复 `:reactive_ble_mobile` 因 AndroidX 1.7.x 依赖要求 SDK 34+ 导致的 `checkReleaseAarMetadata` 失败。
 - 修复 `app/android/` 等平台目录因 `.gitkeep` 残留，导致 CI 中 `flutter create .` 未完整生成 `android/app/build.gradle`，进而使 Android SDK patch 步骤报 `No such file or directory`。
 - 限制 `app.yml` 中 Android compileSdk patch 仅在 `build-matrix` 的 `apk` 条目执行；`cargo-doc` job 与桌面平台构建不再执行该步骤。
-- fix(ci): `Clean platform directories` 步骤加 `shell: bash`，修复 Windows runner 上 `rm -rf` 失败；`download-artifact` 升级至 v7.0.1；`cargo install` 锁定 `--version 2.12.0 --locked`；新增 `permissions: contents: write` 与 `concurrency`；firmware cache 加 `restore-keys`。
+- fix(ci): `Clean platform directories` 步骤加 `shell: bash`，修复 Windows runner 上 `rm -rf` 失败；`cargo install` 锁定 `--version 2.12.0 --locked`；新增 `permissions: contents: write` 与 `concurrency`；firmware cache 加 `restore-keys`。
 - fix(ci): Patch Android compileSdk 兼容 Flutter 3.29+ 的 `build.gradle.kts`；`concurrency.cancel-in-progress` 对 tag 推送不取消以保护 release；macOS `rust_target` 改为 `aarch64-apple-darwin`；release job 删除多余 Checkout 并限定 `pattern: app-*`。
 - fix(firmware): `ble_task.cpp` onWrite 改用 `String.length()` 二进制安全读取，修复 `LEN_HI=0x00` 被 `c_str()` 截断导致所有控制帧失效；启用 `-DUSE_NIMBLE`；ISR 自增进入 `portENTER_CRITICAL_ISR` 临界区；`speed_task` 改用 `vTaskDelayUntil`；RPM 转 int16 前饱和防溢出；`camera_task` 队列二次投递失败释放内存；`motor_set_target` 入口饱和校验；任务优先级调整（motor/speed=3, camera/ble=2）。
 - fix(firmware): 摄像头 LEDC 通道改为 `LEDC_CHANNEL_2`/`LEDC_TIMER_2`，避免抢占电机 ENA 通道导致左轮失控；JPEG 帧缓冲改用 PSRAM；PID 重置分支不再清零 `last_error`；`onDisconnect` 直接 `motor_stop()`；`send_image_frame` 循环内检查 `g_connected`；`esp32-camera` 锁定 `^2.4.0`；`partitions.csv` fr 分区补 `spiffs` 子类型；删除 `angular_mdps` 死字段。
-- fix(app): `flutter_rust_bridge.yaml` 补 `crate::image`；`parse_packet` 加 `len<1` 校验防 panic；`encode_control`/`parse_packet`/`handle_notify_packet` 加 `#[frb(named_args)]`；`startScan` 改 `Timer` 可取消并加状态守卫；`_onConnected` 先置 connected 再写入且失败统一进重连；订阅流补 `onError`；`frame_stream` 加 `isClosed` 检查与 `try/catch`；`_onJoystick` 加 80ms 节流；`tilt_controller` stop 指令绕过节流；`camera_viewport` FPS 定时归零；`encode_control` 返回 `Result` 防 FFI panic；`image.rs` 拒绝 `total_chunks==0`；移除未使用依赖。
+- fix(app): `flutter_rust_bridge.yaml` 补 `crate::image`；`parse_packet` 加 `len<1` 校验防 panic；`startScan` 改 `Timer` 可取消并加状态守卫；`_onConnected` 先置 connected 再写入且失败统一进重连；订阅流补 `onError`；`frame_stream` 加 `isClosed` 检查与 `try/catch`；`_onJoystick` 加 80ms 节流；`tilt_controller` stop 指令绕过节流；`camera_viewport` FPS 定时归零；`encode_control` 返回 `Result` 防 FFI panic；`image.rs` 拒绝 `total_chunks==0`；移除未使用依赖。
 - docs: `CHANGELOG.md` 链接占位符替换为实际仓库；`smart-bt-camera-car` spec/tasks 同步 `esptool.py merge-bin`；`app/rust/README.md` 修正 `api.rs`；`AGENTS.md` mergebin 条目去重、仓库边界补充 fix-ci spec。
 - fix(app): `ble_controller.dart` 重连状态机加固：`_onDisconnected` 幂等守卫防 `_reconnectAttempts` 双重自增；`_attemptReconnect` 置 `connecting` 防重连失败卡死；`_initGeneration` 计数器 + try/catch/finally 全路径 generation 守卫，防旧 `_onConnected` 从 await 恢复后打断新连接或覆盖特征订阅；`connect()` 重置 `_initializing`。
 - fix(app/rust): 删除 3 处 `#[frb(named_args)]`（`api.rs`/`ble.rs`/`control.rs`），该属性在 frb v2 中不存在（v1 旧属性），导致 `flutter_rust_bridge_codegen generate` panic、所有平台 CI 失败。frb v2 默认即生成 Dart 命名参数。
