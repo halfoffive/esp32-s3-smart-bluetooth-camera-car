@@ -14,7 +14,6 @@ use flutter_rust_bridge::frb;
 ///
 /// 非法输入返回 `Err(String)`，避免 `assert` 跨 FFI 触发 panic
 /// （Dart 侧无法捕获 Rust panic，会导致整个进程崩溃）。
-#[frb(named_args)]
 pub fn encode_control(direction: i8, turn: i8, speed_pct: u8) -> Result<Vec<u8>, String> {
     if direction < -1 || direction > 1 {
         return Err(format!("direction 越界: {}", direction));

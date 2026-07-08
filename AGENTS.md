@@ -77,6 +77,7 @@ cargo doc --no-deps --open            # 本地浏览
 - `app/android/`、`app/linux/`、`app/macos/`、`app/windows/` 不应提交 `.gitkeep` 等任何文件到版本控制；否则 CI checkout 后这些目录非空，`flutter create .` 会将其识别为已有平台目录，可能不重新生成 `android/app/build.gradle` 等原生文件。
 - CI 中 Android compileSdk patch 应使用 `if: matrix.flutter_target == 'apk'` 限制，避免在 `cargo-doc` job 与桌面平台（linux/windows/macos）矩阵条目运行。Patch 步骤须兼容 Flutter 3.29+ 的 `build.gradle.kts`（同时检查 `build.gradle` 与 `build.gradle.kts`），并加 `shell: bash`。
 - 跨 FFI 的 Rust 函数不得用 `assert`/`panic` 校验参数，应返回 `Result<T, String>`，否则 panic 会终止整个 Flutter 进程。
+- `#[frb(named_args)]` **不是** frb v2 的合法属性（frb v1 旧属性，v2 已移除）。frb v2 **默认就生成 Dart 命名参数**，反向切换位置参数用 `#[frb(positional)]`。使用 `named_args` 会导致 `flutter_rust_bridge_codegen generate` panic，所有平台 CI 失败。
 - `esp_camera` 的 `ledc_channel` 不得用 `LEDC_CHANNEL_0`/`1`（会被 `ledcAttach` 自动分配给电机），须用 `LEDC_CHANNEL_2` 避免通道冲突。
 - `concurrency.cancel-in-progress` 对 tag 推送应设为不取消（`${{ !startsWith(github.ref, 'refs/tags/') }}`），避免误取消 release。
 

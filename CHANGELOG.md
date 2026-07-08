@@ -32,6 +32,7 @@
 - fix(app): `flutter_rust_bridge.yaml` 补 `crate::image`；`parse_packet` 加 `len<1` 校验防 panic；`encode_control`/`parse_packet`/`handle_notify_packet` 加 `#[frb(named_args)]`；`startScan` 改 `Timer` 可取消并加状态守卫；`_onConnected` 先置 connected 再写入且失败统一进重连；订阅流补 `onError`；`frame_stream` 加 `isClosed` 检查与 `try/catch`；`_onJoystick` 加 80ms 节流；`tilt_controller` stop 指令绕过节流；`camera_viewport` FPS 定时归零；`encode_control` 返回 `Result` 防 FFI panic；`image.rs` 拒绝 `total_chunks==0`；移除未使用依赖。
 - docs: `CHANGELOG.md` 链接占位符替换为实际仓库；`smart-bt-camera-car` spec/tasks 同步 `esptool.py merge-bin`；`app/rust/README.md` 修正 `api.rs`；`AGENTS.md` mergebin 条目去重、仓库边界补充 fix-ci spec。
 - fix(app): `ble_controller.dart` 重连状态机加固：`_onDisconnected` 幂等守卫防 `_reconnectAttempts` 双重自增；`_attemptReconnect` 置 `connecting` 防重连失败卡死；`_initGeneration` 计数器 + try/catch/finally 全路径 generation 守卫，防旧 `_onConnected` 从 await 恢复后打断新连接或覆盖特征订阅；`connect()` 重置 `_initializing`。
+- fix(app/rust): 删除 3 处 `#[frb(named_args)]`（`api.rs`/`ble.rs`/`control.rs`），该属性在 frb v2 中不存在（v1 旧属性），导致 `flutter_rust_bridge_codegen generate` panic、所有平台 CI 失败。frb v2 默认即生成 Dart 命名参数。
 
 ## [0.1.0] - 2026-07-04
 ### Added

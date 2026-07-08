@@ -75,7 +75,6 @@ pub enum PacketKind {
 /// 解析完整 packet：校验 sync + len + crc，按 CMD 分发到子解析器。
 ///
 /// 返回 `None` 表示帧不完整或校验失败；返回 `Some(Unknown)` 表示帧合法但 CMD 未知。
-#[frb(named_args)]
 pub fn parse_packet(buf: &[u8]) -> Option<PacketKind> {
     // 最小帧：sync(2) + len(2) + cmd(1) + crc(1) = 6 字节
     if buf.len() < 6 {

@@ -26,7 +26,6 @@ pub fn create_image_assembler() -> ImageAssembler {
 /// - 图像分片：推入 `assembler`，完整帧返回 JPEG 字节
 /// - 遥测：由 Flutter 侧直接 `parse_packet` 取用，这里不处理
 /// - 其它（控制回环 / 未知）：返回 `None`
-#[frb(named_args)]
 pub fn handle_notify_packet(assembler: &mut ImageAssembler, raw: Vec<u8>) -> Option<Vec<u8>> {
     match crate::ble::parse_packet(&raw) {
         Some(PacketKind::Image(chunk)) => assembler.push(chunk),
