@@ -33,7 +33,7 @@
   - [x] 5.2 `main.dart`：`WidgetsFlutterBinding.ensureInitialized()` 后 `ProviderContainer()` + `read(themeModeProvider.notifier).load()`，`UncontrolledProviderScope` 包裹；`SmartCarApp` 读 `ref.watch(themeModeProvider)` 设 `themeMode`，`theme: AppTheme.light()`、`darkTheme: AppTheme.dark()`
   - 验证：默认跟随系统；切换后重启仍保持
 
-- [ ] Task 6: 重构 UI 文件 AppColors → colorScheme（依赖 Task 4）
+- [x] Task 6: 重构 UI 文件 AppColors → colorScheme（依赖 Task 4）
   - [x] 6.1 `joystick.dart`：`_JoystickPainter` 增加 `Color` 参数（baseFill / baseStroke / cross / thumb / thumbHighlight），`build` 中从 `Theme.of(context).colorScheme` 取值传入
   - [x] 6.2 `camera_viewport.dart`：`AppColors.bg→colorScheme.surface`、`accent→primary`、`hudTextDim→onSurfaceVariant`、`dataActive→HudStatus.active`、`warn→HudStatus.warn`、`danger→HudStatus.dangerOf(context)`；HUD 芯片黑底渐变（`Colors.black`）保留（视频叠层可读性）
   - [x] 6.3 `telemetry_panel.dart`：`surfaceVariant→surfaceContainerHigh`、`hudText→onSurface`、`hudTextDim→onSurfaceVariant`、`dataActive/warn/danger→HudStatus`
@@ -43,20 +43,20 @@
 
 ## 文档与提交
 
-- [ ] Task 7: 更新 AGENTS.md / CHANGELOG.md（依赖 Task 1-6）
-  - [ ] 7.1 `AGENTS.md`：
+- [x] Task 7: 更新 AGENTS.md / CHANGELOG.md（依赖 Task 1-6）
+  - [x] 7.1 `AGENTS.md`：
     - 「用户强制风格」Flutter 侧补充「Material 3 默认配色（不设种子色），深浅色默认跟随系统，设置页可切换」
     - 「工具链陷阱」追加：Kotlin DSL（`.gradle.kts`）compileSdk patch 必须带 `=`（`compileSdk = 35`），Groovy（`.gradle`）不带；`KeyEventResult` 在 `package:flutter/widgets.dart`，`show` 导入须显式列出
     - 新增「提交纪律」段：`cargo clippy --all-features -- -D warnings` 必须通过才能提交；AI 多关注点改动须分批提交（独立可编译 commit）
-  - [ ] 7.2 `CHANGELOG.md` `[Unreleased]`：Added（主题模式设置 / clippy 门槛）、Changed（M3 默认配色替代自定义橙黑）、Fixed（KeyEventResult 导入 / Android compileSdk Kotlin 语法）
+  - [x] 7.2 `CHANGELOG.md` `[Unreleased]`：Added（主题模式设置 / clippy 门槛）、Changed（M3 默认配色替代自定义橙黑）、Fixed（KeyEventResult 导入 / Android compileSdk Kotlin 语法）
   - 验证：文档与变更一致
 
-- [ ] Task 8: 分批 git 提交（依赖 Task 1-7，按关注点拆分）
-  - [ ] 8.1 `fix(input): 补 KeyEventResult 导入修复 Linux 构建`
-  - [ ] 8.2 `fix(ci): 修复 Android compileSdk patch 的 Kotlin DSL 语法`
-  - [ ] 8.3 `ci: 新增 cargo clippy 零警告门槛并修复现有警告`
-  - [ ] 8.4 `feat: Material 3 默认配色 + 深浅色跟随系统 + 主题模式设置`
-  - [ ] 8.5 `docs: 更新 AGENTS 约定与 CHANGELOG`
+- [x] Task 8: 分批 git 提交（依赖 Task 1-7，按关注点拆分）
+  - [x] 8.1 `fix(input): 补 KeyEventResult 导入修复 Linux 构建`
+  - [x] 8.2 `fix(ci): 修复 Android compileSdk patch 的 Kotlin DSL 语法`
+  - [x] 8.3 `ci: 新增 cargo clippy 零警告门槛并修复现有警告`
+  - [x] 8.4 `feat: Material 3 默认配色 + 深浅色跟随系统 + 主题模式设置`
+  - [x] 8.5 `docs: 更新 AGENTS 约定与 CHANGELOG`
   - 验证：每个 commit 独立可编译；遵循 Conventional Commits
 
 # Task Dependencies
