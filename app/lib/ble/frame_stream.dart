@@ -75,7 +75,9 @@ class FrameStreamAssembler {
   /// 包内含 frame_id/chunk_idx/total_chunks + JPEG 分片数据，
   /// Rust 侧组装完整帧后返回非 null 字节，否则返回 null。
   void handlePacket(Uint8List raw) {
-    _pending = _pending.then((_) => _handleImagePacket(raw));
+    _pending = _pending.then((_) => _handleImagePacket(raw)).catchError((e) {
+      // FFI 调用失败不阻断后续帧处理
+    });
   }
 
   Future<void> _handleImagePacket(Uint8List raw) async {
@@ -116,7 +118,9 @@ class TelemetryParser {
 
   /// 处理一条 telemetry 特征 NOTIFY 包。
   void handlePacket(Uint8List raw) {
-    _pending = _pending.then((_) => _handleTelemetryPacket(raw));
+    _pending = _pending.then((_) => _handleTelemetryPacket(raw)).catchError((e) {
+      // FFI 调用失败不阻断后续遥测处理
+    });
   }
 
   Future<void> _handleTelemetryPacket(Uint8List raw) async {

@@ -34,6 +34,7 @@ class CameraViewport extends ConsumerWidget {
               bytes,
               fit: BoxFit.cover,
               gaplessPlayback: true,
+              errorBuilder: (context, error, stackTrace) => const SizedBox(),
             ),
             loading: () => const _Placeholder(text: '等待画面...'),
             error: (e, _) => _Placeholder(text: '画面错误: $e'),

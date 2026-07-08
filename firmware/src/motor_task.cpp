@@ -149,7 +149,7 @@ void motor_task(void* arg) {
         /* 3. 目标 PWM（direction==0 时直接 0） */
         uint16_t target_pwm = 0;
         if (dir != 0) {
-            target_pwm = (uint16_t)((float)sp_pct / 100.0f * (float)V_MAX_PWM * ratio);
+            target_pwm = clamp_pwm((uint16_t)((float)sp_pct / 100.0f * (float)V_MAX_PWM * ratio));
         }
 
         /* 4. 转向叠加：turn_bias = turn * 0.2 * target_pwm

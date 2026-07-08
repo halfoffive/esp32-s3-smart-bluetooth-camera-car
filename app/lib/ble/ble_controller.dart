@@ -303,6 +303,10 @@ class BleController extends StateNotifier<BleState> {
       // 清理连接订阅，避免断开事件回调到已失效的控制器
       await _connSub?.cancel();
       _connSub = null;
+      await _imageSub?.cancel();
+      _imageSub = null;
+      await _telemetrySub?.cancel();
+      _telemetrySub = null;
       if (!mounted) return;
       state = state.copyWith(
         status: ConnectionStatus.disconnected,

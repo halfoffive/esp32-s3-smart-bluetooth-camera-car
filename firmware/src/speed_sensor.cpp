@@ -82,11 +82,12 @@ SpeedData speed_sensor_get() {
  * ============================================================ */
 void speed_task(void* arg) {
     (void)arg;
+    TickType_t last_wake = xTaskGetTickCount();
     uint32_t last_ms = millis();
 
     while (true) {
         // 固定 10ms 节拍
-        vTaskDelay(pdMS_TO_TICKS(CONTROL_PERIOD_MS));
+        vTaskDelayUntil(&last_wake, pdMS_TO_TICKS(CONTROL_PERIOD_MS));
 
         uint32_t now_ms = millis();
         uint32_t delta_ms = now_ms - last_ms;
