@@ -18,6 +18,9 @@
 - feat(app): Material 3 **默认配色**替代自定义橙黑 HUD 配色 —— 移除 `AppColors` 类与 `colorSchemeSeed`，结构色（背景/表面/主色/文字）一律取自 `Theme.of(context).colorScheme`；状态语义色由新 `HudStatus` 承载（`Colors.green`/`Colors.amber`/`colorScheme.error`）。`AppTheme` 新增 `light()`/`dark()` 双主题，`main.dart` 接入 `theme`/`darkTheme`/`themeMode`。`joystick`/`camera_viewport`/`telemetry_panel`/`control_panel`/`settings_screen` 同步迁移。
 
 ### Fixed
+- fix(ci): 修正 `.github/workflows/app.yml` 与 `firmware.yml` 中错误的 Actions 版本标签（`upload-artifact@v7` / `download-artifact@v8` / `setup-python@v6` → `@v5`），避免 workflow 解析失败。
+- fix(firmware): 修正 `firmware/platformio.ini` 中 `espressif/esp32-camera` 版本为 `^2.1.7`，修复 `^2.4.0` 不存在导致的 `UnknownPackageError`。
+- fix(ci/app): 修正 Android compileSdk patch 的 Kotlin DSL 注入块，将已弃用的 `com.android.build.gradle.BaseExtension` 替换为 `com.android.build.api.dsl.CommonExtension`，修复 Gradle `Unresolved reference 'compileSdk'` 构建失败。
 - fix(app): `pubspec.yaml` 中 `flutter_rust_bridge` 的版本约束 `=2.12.0` 不符合 Dart pub 语法（`=` 是 Cargo 语法），导致 `flutter pub get` 报 `Invalid version constraint` 失败；改为精确版本 `2.12.0`。
 - fix(app): `ble_controller.dart` 修复多个状态机竞态：connect() 取消残留扫描订阅/定时器；startScan() 超时回调早退时补 complete 防止 Future 永久挂起；_onConnected() 置 connected 前取消残留 _reconnectTimer，避免健康连接被自残式重连断开；connect() 与 _attemptReconnect() 重置 _initializing 时同步递增 _initGeneration，防止旧 _onConnected 从 await 恢复后干扰新连接。
 - fix(app): `keyboard_controller.dart` 移除 `widgets.dart` 中对 `KeyEventResult` 的 show import（由 `services.dart` 全量提供），避免潜在编译错误。
