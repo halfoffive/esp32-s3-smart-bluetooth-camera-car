@@ -99,6 +99,6 @@ jobs:
 
       # tag 推送时创建 Release 并附带 bin（可选）
       - name: Create Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: firmware-merged.bin
