@@ -40,7 +40,8 @@ impl ImageAssembler {
         // 帧切换检测：frame_id 变化时重置
         if self.current_frame_id != Some(chunk.frame_id) {
             // 上限保护：total_chunks 过大（可能为损坏包）拒绝重组，防 OOM
-            if chunk.total_chunks > 1024 {
+            // 下限保护：total_chunks == 0 会导致 resize(0) 后永远无法到齐，拒绝
+            if chunk.total_chunks == 0 || chunk.total_chunks > 1024 {
                 return None;
             }
             self.current_frame_id = Some(chunk.frame_id);

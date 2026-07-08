@@ -12,21 +12,19 @@ use flutter_rust_bridge::frb;
 /// - `turn ∈ {-1, 0, 1}`（-1 左 / 0 直 / 1 右）
 /// - `speed_pct ∈ 0..=100`
 ///
-/// 非法输入触发 `assert`（按 Rust 惯例，调用方应保证参数合法）。
-/// 如需软失败可改为返回 `Result`，本实现遵循任务约定的 assert 风格。
+/// 非法输入返回 `Err(String)`，避免 `assert` 跨 FFI 触发 panic
+/// （Dart 侧无法捕获 Rust panic，会导致整个进程崩溃）。
 #[frb(named_args)]
-pub fn encode_control(direction: i8, turn: i8, speed_pct: u8) -> Vec<u8> {
-    assert!(
-        direction == -1 || direction == 0 || direction == 1,
-        "direction must be -1/0/1, got {}",
-        direction
-    );
-    assert!(
-        turn == -1 || turn == 0 || turn == 1,
-        "turn must be -1/0/1, got {}",
-        turn
-    );
-    assert!(speed_pct <= 100, "speed_pct must be 0..=100, got {}", speed_pct);
+pub fn encode_control(direction: i8, turn: i8, speed_pct: u8) -> Result<Vec<u8>, String> {
+    if direction < -1 || direction > 1 {
+        return Err(format!("direction 越界: {}", direction));
+    }
+    if turn < -1 || turn > 1 {
+        return Err(format!("turn 越界: {}", turn));
+    }
+    if speed_pct > 100 {
+        return Err(format!("speed_pct 越界: {}", speed_pct));
+    }
 
     // LEN = CMD(1) + PAYLOAD(3) = 4
     let len: u16 = 4;
@@ -43,5 +41,5 @@ pub fn encode_control(direction: i8, turn: i8, speed_pct: u8) -> Vec<u8> {
     // CRC 覆盖 LEN_HI..PAYLOAD = buf[2..7]
     let crc = crc8(&buf[2..]);
     buf.push(crc);
-    buf
+    Ok(buf)
 }

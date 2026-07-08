@@ -7,6 +7,7 @@
 //   - 底部居中：当前速度（大号橙色等宽数字）
 // 断流时显示占位 "等待画面..."。
 
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -82,6 +83,26 @@ class _HudOverlay extends ConsumerStatefulWidget {
 class _HudOverlayState extends ConsumerState<_HudOverlay> {
   /// 最近 1 秒内的帧时间戳（ms since epoch）
   final List<int> _frameTimes = <int>[];
+
+  /// FPS 窗口清理定时器：断流后定期剔除过期时间戳，使 FPS 归零而非卡在历史值
+  Timer? _fpsCleanupTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    // 每秒清理过期帧时间戳；停止接收帧后 FPS 能正确归零
+    _fpsCleanupTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      final now = DateTime.now().millisecondsSinceEpoch;
+      _frameTimes.removeWhere((t) => now - t > 1000);
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _fpsCleanupTimer?.cancel();
+    super.dispose();
+  }
 
   @override
   void didUpdateWidget(covariant _HudOverlay oldWidget) {

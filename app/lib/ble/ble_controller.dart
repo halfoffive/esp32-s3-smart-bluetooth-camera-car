@@ -132,6 +132,7 @@ class BleController extends StateNotifier<BleState> {
   int _reconnectAttempts = 0; // 已尝试重连次数
   Timer? _reconnectTimer;
   String? _lastDeviceId; // 重连目标
+  bool _initializing = false; // _onConnected 重入保护（connected 事件可能重复触发）
 
   /// 释放资源（ProviderScope dispose 时自动调用）。
   @override
@@ -159,6 +160,8 @@ class BleController extends StateNotifier<BleState> {
   /// 扫描期间匹配设备实时写入 [BleState.discoveredDevices]；
   /// 扫描结束后若发现设备则保持列表供 UI 选择 connect，否则置错误信息。
   Future<void> startScan() async {
+    // 已连接时不重新扫描：避免清掉特征订阅导致画面/遥测中断
+    if (state.status == ConnectionStatus.connected) return;
     if (state.status == ConnectionStatus.scanning) return;
 
     // 清理旧订阅（连接订阅除外，避免打断进行中的连接）
@@ -182,6 +185,9 @@ class BleController extends StateNotifier<BleState> {
         }
       },
       onError: (Object e) {
+        // 扫描流出错时一并取消超时定时器，避免回调竞态
+        _scanTimer?.cancel();
+        _scanTimer = null;
         if (!done.isCompleted) {
           state = BleState(
             status: ConnectionStatus.disconnected,
@@ -265,58 +271,82 @@ class BleController extends StateNotifier<BleState> {
 
   /// 连接成功后：协商 MTU、订阅特征、写控制占位。
   Future<void> _onConnected() async {
-    final deviceId = state.deviceId ?? _lastDeviceId;
-    if (deviceId == null) return;
-
+    // 重入保护：connected 事件可能重复触发，避免并发初始化破坏订阅
+    if (_initializing) return;
+    _initializing = true;
     try {
-      // 1) 协商 MTU 512（与固件 BLE_MTU_SIZE 一致）
-      await _ble.requestMtu(
-        deviceId: deviceId,
-        mtu: CarDeviceConstants.negotiatedMtu,
-      );
+      final deviceId = state.deviceId ?? _lastDeviceId;
+      if (deviceId == null) return;
 
-      // 2) 订阅图像与遥测特征
-      final imageChar = _qualifiedChar(
-        deviceId,
-        CarDeviceConstants.imageCharacteristicUuid,
-      );
-      final telemetryChar = _qualifiedChar(
-        deviceId,
-        CarDeviceConstants.telemetryCharacteristicUuid,
-      );
+      try {
+        // 1) 协商 MTU 512（与固件 BLE_MTU_SIZE 一致）
+        await _ble.requestMtu(
+          deviceId: deviceId,
+          mtu: CarDeviceConstants.negotiatedMtu,
+        );
 
-      _imageSub = _ble.subscribeToCharacteristic(imageChar).listen(
-        (bytes) {
-          _frameAssembler.handlePacket(Uint8List.fromList(bytes));
-        },
-        onError: (e) {
-          state = state.copyWith(errorMessage: '特征订阅错误: $e');
-        },
-      );
-      _telemetrySub = _ble.subscribeToCharacteristic(telemetryChar).listen(
-        (bytes) {
-          _telemetryParser.handlePacket(Uint8List.fromList(bytes));
-        },
-        onError: (e) {
-          state = state.copyWith(errorMessage: '特征订阅错误: $e');
-        },
-      );
+        // 2) 订阅图像与遥测特征
+        final imageChar = _qualifiedChar(
+          deviceId,
+          CarDeviceConstants.imageCharacteristicUuid,
+        );
+        final telemetryChar = _qualifiedChar(
+          deviceId,
+          CarDeviceConstants.telemetryCharacteristicUuid,
+        );
 
-      // 3) 先置 connected 状态：sendControl 内部校验 status==connected，
-      //    顺序颠倒会导致占位指令被静默丢弃。
-      _reconnectAttempts = 0;
-      state = state.copyWith(
-        status: ConnectionStatus.connected,
-        errorMessage: null, // 清除旧错误
-      );
+        _imageSub = _ble.subscribeToCharacteristic(imageChar).listen(
+          (bytes) {
+            _frameAssembler.handlePacket(Uint8List.fromList(bytes));
+          },
+          onError: (e) {
+            state = state.copyWith(errorMessage: '特征订阅错误: $e');
+          },
+        );
+        _telemetrySub = _ble.subscribeToCharacteristic(telemetryChar).listen(
+          (bytes) {
+            _telemetryParser.handlePacket(Uint8List.fromList(bytes));
+          },
+          onError: (e) {
+            state = state.copyWith(errorMessage: '特征订阅错误: $e');
+          },
+        );
 
-      // 4) 写入控制特征占位（零速停机），确认 WRITE 通道可用
-      await sendControl(0, 0, 0);
-    } catch (e) {
-      state = state.copyWith(
-        status: ConnectionStatus.disconnected,
-        errorMessage: '连接初始化失败: $e',
-      );
+        // 3) 先置 connected 状态：sendControl 内部校验 status==connected，
+        //    顺序颠倒会导致占位指令被静默丢弃。
+        _reconnectAttempts = 0;
+        state = state.copyWith(
+          status: ConnectionStatus.connected,
+          errorMessage: null, // 清除旧错误
+        );
+
+        // 4) 写入控制特征占位（零速停机），确认 WRITE 通道可用
+        //    直接调用底层写入：sendControl 内部 catch 会吞错，
+        //    导致 WRITE 通道失败时 UI 仍假性显示已连接
+        try {
+          await _ble.writeCharacteristicWithResponse(
+            _qualifiedChar(
+              deviceId,
+              CarDeviceConstants.controlCharacteristicUuid,
+            ),
+            value: await control_rust.encodeControl(
+              direction: 0,
+              turn: 0,
+              speedPct: 0,
+            ),
+          );
+        } catch (e) {
+          // WRITE 通道不通，视为连接失败
+          _onDisconnected(error: 'WRITE 通道初始化失败: $e');
+          return;
+        }
+      } catch (e) {
+        // requestMtu / 订阅失败：统一走 _onDisconnected 触发重连，
+        // 而非直接置 disconnected（否则不会进入重连流程）
+        _onDisconnected(error: '连接初始化失败: $e');
+      }
+    } finally {
+      _initializing = false;
     }
   }
 
