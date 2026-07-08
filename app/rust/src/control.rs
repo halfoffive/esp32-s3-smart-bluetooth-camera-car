@@ -14,10 +14,10 @@ use crate::ble::{crc8, CMD_CONTROL, SYNC0, SYNC1};
 /// 非法输入返回 `Err(String)`，避免 `assert` 跨 FFI 触发 panic
 /// （Dart 侧无法捕获 Rust panic，会导致整个进程崩溃）。
 pub fn encode_control(direction: i8, turn: i8, speed_pct: u8) -> Result<Vec<u8>, String> {
-    if direction < -1 || direction > 1 {
+    if !(-1..=1).contains(&direction) {
         return Err(format!("direction 越界: {}", direction));
     }
-    if turn < -1 || turn > 1 {
+    if !(-1..=1).contains(&turn) {
         return Err(format!("turn 越界: {}", turn));
     }
     if speed_pct > 100 {

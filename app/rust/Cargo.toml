@@ -11,3 +11,9 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 [dependencies]
 # flutter_rust_bridge 集成；实际版本以 codegen 生成为准（当前 latest 为 2.x）
 flutter_rust_bridge = "=2.12.0"
+
+# 声明 frb v2 属性宏（#[frb(sync)] / #[frb(opaque)] 等）内部展开的 cfg(frb_expand) 为已知 cfg，
+# 避免 -D warnings 下 cargo clippy 报 unexpected_cfgs（rustc 1.80+ 的 check-cfg 机制）。
+# 其它未知 cfg 仍被 deny。
+[lints.rust]
+unexpected_cfgs = { level = "deny", check-cfg = ['cfg(frb_expand)'] }

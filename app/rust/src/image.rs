@@ -66,10 +66,8 @@ impl ImageAssembler {
         // 全部分片到齐：按 chunk_idx 顺序拼接并重置
         if !self.received.is_empty() && self.received_count as usize == self.received.len() {
             let mut out = Vec::new();
-            for slot in self.received.drain(..) {
-                if let Some(b) = slot {
-                    out.extend_from_slice(&b);
-                }
+            for b in self.received.drain(..).flatten() {
+                out.extend_from_slice(&b);
             }
             self.current_frame_id = None;
             self.total_chunks = 0;
