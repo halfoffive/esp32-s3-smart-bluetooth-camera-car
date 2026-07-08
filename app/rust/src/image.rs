@@ -18,7 +18,7 @@ pub struct ImageAssembler {
     /// 按 chunk_idx 下标保存的分片数据；None 表示该下标尚未到达
     pub received: Vec<Option<Vec<u8>>>,
     /// 已收到的分片计数（用于快速判断是否到齐）
-    pub next_idx: u16,
+    pub received_count: u16,
 }
 
 impl ImageAssembler {
@@ -27,7 +27,7 @@ impl ImageAssembler {
             current_frame_id: None,
             total_chunks: 0,
             received: Vec::new(),
-            next_idx: 0,
+            received_count: 0,
         }
     }
 
@@ -39,11 +39,15 @@ impl ImageAssembler {
     pub fn push(&mut self, chunk: ImageChunk) -> Option<Vec<u8>> {
         // 帧切换检测：frame_id 变化时重置
         if self.current_frame_id != Some(chunk.frame_id) {
+            // 上限保护：total_chunks 过大（可能为损坏包）拒绝重组，防 OOM
+            if chunk.total_chunks > 1024 {
+                return None;
+            }
             self.current_frame_id = Some(chunk.frame_id);
             self.total_chunks = chunk.total_chunks;
             self.received.clear();
             self.received.resize_with(chunk.total_chunks as usize, || None);
-            self.next_idx = 0;
+            self.received_count = 0;
         }
 
         // 越界保护：chunk_idx 超出 total_chunks 范围时忽略
@@ -55,14 +59,14 @@ impl ImageAssembler {
         if self.received[idx].is_none() {
             // 首次到达：计入计数
             self.received[idx] = Some(chunk.jpeg_bytes);
-            self.next_idx += 1;
+            self.received_count += 1;
         } else {
             // 重复分片：覆盖数据但不重复计数
             self.received[idx] = Some(chunk.jpeg_bytes);
         }
 
         // 全部分片到齐：按 chunk_idx 顺序拼接并重置
-        if !self.received.is_empty() && self.next_idx as usize == self.received.len() {
+        if !self.received.is_empty() && self.received_count as usize == self.received.len() {
             let mut out = Vec::new();
             for slot in self.received.drain(..) {
                 if let Some(b) = slot {
@@ -72,7 +76,7 @@ impl ImageAssembler {
             self.current_frame_id = None;
             self.total_chunks = 0;
             self.received.clear();
-            self.next_idx = 0;
+            self.received_count = 0;
             return Some(out);
         }
         None

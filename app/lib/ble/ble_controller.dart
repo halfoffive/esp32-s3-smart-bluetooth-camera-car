@@ -122,6 +122,7 @@ class BleController extends StateNotifier<BleState> {
 
   // ---- 流订阅 ----
   StreamSubscription<DiscoveredDevice>? _scanSub;
+  Timer? _scanTimer; // 扫描超时定时器（可取消，避免 dispose 后回调竞态）
   StreamSubscription<ConnectionStateUpdate>? _connSub;
   StreamSubscription<List<int>>? _imageSub;
   StreamSubscription<List<int>>? _telemetrySub;
@@ -136,6 +137,7 @@ class BleController extends StateNotifier<BleState> {
   @override
   void dispose() {
     _cancelAllSubscriptions();
+    _scanTimer?.cancel();
     _reconnectTimer?.cancel();
     _frameAssembler.dispose();
     _telemetryParser.dispose();
@@ -162,6 +164,8 @@ class BleController extends StateNotifier<BleState> {
     // 清理旧订阅（连接订阅除外，避免打断进行中的连接）
     _scanSub?.cancel();
     _scanSub = null;
+    _scanTimer?.cancel();
+    _scanTimer = null;
     _cancelCharacteristicSubs();
 
     state = const BleState(status: ConnectionStatus.scanning);
@@ -188,10 +192,13 @@ class BleController extends StateNotifier<BleState> {
       },
     );
 
-    // 5 秒后停止扫描并收尾
-    Future<void>.delayed(const Duration(seconds: 5), () {
+    // 5 秒后停止扫描并收尾（用 Timer 以便 dispose/重扫时取消，避免回调竞态）
+    _scanTimer = Timer(const Duration(seconds: 5), () {
+      // 状态已离开 scanning（被取消/重置）则不更新，避免回调竞态
+      if (state.status != ConnectionStatus.scanning) return;
       _scanSub?.cancel();
       _scanSub = null;
+      _scanTimer = null;
       if (!done.isCompleted) {
         if (found.isEmpty) {
           state = BleState(
@@ -278,22 +285,33 @@ class BleController extends StateNotifier<BleState> {
         CarDeviceConstants.telemetryCharacteristicUuid,
       );
 
-      _imageSub = _ble.subscribeToCharacteristic(imageChar).listen((bytes) {
-        _frameAssembler.handlePacket(Uint8List.fromList(bytes));
-      });
-      _telemetrySub =
-          _ble.subscribeToCharacteristic(telemetryChar).listen((bytes) {
-        _telemetryParser.handlePacket(Uint8List.fromList(bytes));
-      });
+      _imageSub = _ble.subscribeToCharacteristic(imageChar).listen(
+        (bytes) {
+          _frameAssembler.handlePacket(Uint8List.fromList(bytes));
+        },
+        onError: (e) {
+          state = state.copyWith(errorMessage: '特征订阅错误: $e');
+        },
+      );
+      _telemetrySub = _ble.subscribeToCharacteristic(telemetryChar).listen(
+        (bytes) {
+          _telemetryParser.handlePacket(Uint8List.fromList(bytes));
+        },
+        onError: (e) {
+          state = state.copyWith(errorMessage: '特征订阅错误: $e');
+        },
+      );
 
-      // 3) 写入控制特征占位（零速停机），确认 WRITE 通道可用
-      await sendControl(0, 0, 0);
-
+      // 3) 先置 connected 状态：sendControl 内部校验 status==connected，
+      //    顺序颠倒会导致占位指令被静默丢弃。
       _reconnectAttempts = 0;
       state = state.copyWith(
         status: ConnectionStatus.connected,
         errorMessage: null, // 清除旧错误
       );
+
+      // 4) 写入控制特征占位（零速停机），确认 WRITE 通道可用
+      await sendControl(0, 0, 0);
     } catch (e) {
       state = state.copyWith(
         status: ConnectionStatus.disconnected,
@@ -422,6 +440,8 @@ class BleController extends StateNotifier<BleState> {
   void _cancelAllSubscriptions() {
     _scanSub?.cancel();
     _scanSub = null;
+    _scanTimer?.cancel();
+    _scanTimer = null;
     _cancelCharacteristicSubs();
     _connSub?.cancel();
     _connSub = null;

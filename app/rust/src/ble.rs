@@ -7,6 +7,8 @@
 //! - 多字节载荷字段（frame_id / chunk_idx / rpm ...）一律小端
 //! - CRC8：多项式 0x07，初始 0x00，无反射，覆盖 `LEN_HI..PAYLOAD`（不含 SYNC、不含 CRC 自身）
 
+use flutter_rust_bridge::frb;
+
 /// 同步头字节 0
 pub const SYNC0: u8 = 0xAA;
 /// 同步头字节 1
@@ -73,6 +75,7 @@ pub enum PacketKind {
 /// 解析完整 packet：校验 sync + len + crc，按 CMD 分发到子解析器。
 ///
 /// 返回 `None` 表示帧不完整或校验失败；返回 `Some(Unknown)` 表示帧合法但 CMD 未知。
+#[frb(named_args)]
 pub fn parse_packet(buf: &[u8]) -> Option<PacketKind> {
     // 最小帧：sync(2) + len(2) + cmd(1) + crc(1) = 6 字节
     if buf.len() < 6 {
@@ -83,6 +86,10 @@ pub fn parse_packet(buf: &[u8]) -> Option<PacketKind> {
     }
     // LEN 字段为大端（LEN_HI 在前）
     let len = ((buf[2] as u16) << 8) | (buf[3] as u16);
+    // LEN 至少为 1（CMD 占 1 字节）；len=0 会导致后续 &buf[5..total-1]=&buf[5..4] 越界 panic
+    if len < 1 {
+        return None;
+    }
     // 总帧长 = sync(2) + len字段(2) + LEN值 + crc(1)
     let total = 2 + 2 + len as usize + 1;
     if buf.len() < total {

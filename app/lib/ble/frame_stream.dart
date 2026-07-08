@@ -79,6 +79,7 @@ class FrameStreamAssembler {
   }
 
   Future<void> _handleImagePacket(Uint8List raw) async {
+    if (_controller.isClosed) return;
     // handleNotifyPacket(&mut assembler, Vec<u8>) -> Option<Vec<u8>>
     // frb v2 将 Vec<u8> / &[u8] 映射为 Uint8List（Uint8List 是 List<int> 子类，
     // 故无论 codegen 生成 Uint8List 还是 List<int> 参数均兼容）。
@@ -86,9 +87,13 @@ class FrameStreamAssembler {
     // 若 codegen 改为返回 (assembler, frame) 元组，此处改为：
     //   final result = await rust.handleNotifyPacket(_assembler, raw);
     //   _assembler = result.$1; final frame = result.$2;
-    final frame = await rust.handleNotifyPacket(assembler: _assembler, raw: raw);
-    if (frame != null) {
-      _controller.add(frame);
+    try {
+      final frame = await rust.handleNotifyPacket(assembler: _assembler, raw: raw);
+      if (frame != null) {
+        _controller.add(frame);
+      }
+    } catch (e) {
+      // 吞掉 FFI 异常：避免 _pending 进入错误态导致后续分片解析断链
     }
   }
 
@@ -120,26 +125,31 @@ class TelemetryParser {
   }
 
   Future<void> _handleTelemetryPacket(Uint8List raw) async {
+    if (_controller.isClosed) return;
     // parse_packet(&[u8]) -> Option<PacketKind>
     // frb v2 将 &[u8] 映射为 Uint8List，直接传 raw 即可
     // frb v2 将 Rust enum 生成 sealed class 层级：
     //   PacketKind_Telemetry(TelemetryPayload) 等子类
-    final kind = await ble.parsePacket(buf: raw);
-    if (kind == null) return;
+    try {
+      final kind = await ble.parsePacket(buf: raw);
+      if (kind == null) return;
 
-    // frb v2 对 tuple variant PacketKind::Telemetry(TelemetryPayload)
-    // 默认生成子类 PacketKind_Telemetry，载荷字段名 field0。
-    // 若 codegen 配置为 named field，改为 kind.telemetry 之类。
-    if (kind is ble.PacketKind_Telemetry) {
-      final t = kind.field0;
-      _controller.add(Telemetry(
-        leftRpm: t.leftRpm,
-        rightRpm: t.rightRpm,
-        leftSpeedMmS: t.leftSpeedMmS,
-        rightSpeedMmS: t.rightSpeedMmS,
-        targetSpeedMmS: t.targetSpeedMmS,
-        batteryMv: t.batteryMv,
-      ));
+      // frb v2 对 tuple variant PacketKind::Telemetry(TelemetryPayload)
+      // 默认生成子类 PacketKind_Telemetry，载荷字段名 field0。
+      // 若 codegen 配置为 named field，改为 kind.telemetry 之类。
+      if (kind is ble.PacketKind_Telemetry) {
+        final t = kind.field0;
+        _controller.add(Telemetry(
+          leftRpm: t.leftRpm,
+          rightRpm: t.rightRpm,
+          leftSpeedMmS: t.leftSpeedMmS,
+          rightSpeedMmS: t.rightSpeedMmS,
+          targetSpeedMmS: t.targetSpeedMmS,
+          batteryMv: t.batteryMv,
+        ));
+      }
+    } catch (e) {
+      // 吞掉 FFI 异常：避免 _pending 进入错误态导致后续遥测解析断链
     }
   }
 

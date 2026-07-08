@@ -50,7 +50,7 @@ class CameraViewport extends ConsumerWidget {
                     Colors.black.withValues(alpha: 0.45),
                     Colors.transparent,
                     Colors.transparent,
-Colors.black.withValues(alpha: 0.55),
+                    Colors.black.withValues(alpha: 0.55),
                   ],
                   stops: const [0.0, 0.18, 0.65, 1.0],
                 ),

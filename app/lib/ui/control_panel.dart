@@ -46,6 +46,9 @@ class _ControlPanelBodyState extends ConsumerState<_ControlPanelBody> {
   /// 上次方向（释放时保留以告知固件"前进-停止"而非"方向变更-停止"）
   int _lastDirection = 0;
 
+  /// 上次摇杆发送时间戳（80ms 节流，防 BLE 写入队列过载，参考 TiltController）
+  DateTime? _lastJoystickSend;
+
   /// 当前操控模式（initState 中按平台初始化）
   late ControlMode _mode;
 
@@ -134,11 +137,20 @@ class _ControlPanelBodyState extends ConsumerState<_ControlPanelBody> {
   void _onJoystick(double dx, double dy) {
     final notifier = ref.read(bleControllerProvider.notifier);
 
-    // 释放：发送 stop，保留上次方向
+    // 释放：发送 stop，保留上次方向（释放事件不节流，确保及时停车）
     if (dx == 0 && dy == 0) {
       notifier.sendControl(_lastDirection, 0, 0);
       return;
     }
+
+    // 80ms 节流：连续摇动时限制下发频率，避免 BLE 写入队列过载
+    final now = DateTime.now();
+    if (_lastJoystickSend != null &&
+        now.difference(_lastJoystickSend!) <
+            const Duration(milliseconds: 80)) {
+      return;
+    }
+    _lastJoystickSend = now;
 
     // 方向：dy 上为正 → 前进
     int direction = 0;

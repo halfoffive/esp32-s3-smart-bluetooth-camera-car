@@ -4,6 +4,7 @@
 //! PAYLOAD = `direction(1) + turn(1) + speed_pct(1)`，共 3 字节，故 LEN = 4。
 
 use crate::ble::{crc8, CMD_CONTROL, SYNC0, SYNC1};
+use flutter_rust_bridge::frb;
 
 /// 编码控制指令为完整 packet 字节流。
 ///
@@ -13,6 +14,7 @@ use crate::ble::{crc8, CMD_CONTROL, SYNC0, SYNC1};
 ///
 /// 非法输入触发 `assert`（按 Rust 惯例，调用方应保证参数合法）。
 /// 如需软失败可改为返回 `Result`，本实现遵循任务约定的 assert 风格。
+#[frb(named_args)]
 pub fn encode_control(direction: i8, turn: i8, speed_pct: u8) -> Vec<u8> {
     assert!(
         direction == -1 || direction == 0 || direction == 1,

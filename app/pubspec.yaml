@@ -5,23 +5,19 @@ version: 0.1.0+1
 
 environment:
   sdk: '>=3.4.0 <4.0.0'
-  flutter: '>=1.20.0'
+  flutter: '>=3.27.0'
 
 dependencies:
   flutter:
     sdk: flutter
-  # flutter_rust_bridge 集成：Dart<->Rust 胶水代码由 codegen 生成（latest v2.x）
-  flutter_rust_bridge: ^2.0.0
+  # flutter_rust_bridge 集成：Dart<->Rust 胶水代码由 codegen 生成（与 Cargo.toml =2.12.0 对齐）
+  flutter_rust_bridge: =2.12.0
   # BLE 扫描 / 连接 / GATT 读写
   flutter_reactive_ble: ^5.3.1
   # 加速度计（手机体感操控）
   sensors_plus: ^5.0.1
   # 状态管理
   flutter_riverpod: ^2.5.1
-  # 不可变模型注解（配合 freezed 代码生成）
-  freezed_annotation: ^2.4.1
-  # 平台文件系统路径
-  path_provider: ^2.1.3
   # 轻量 KV 存储
   shared_preferences: ^2.2.3
 
@@ -29,9 +25,6 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
-  # freezed / json_serializable 代码生成驱动
-  build_runner: ^2.4.10
-  freezed: ^2.5.2
 
 flutter:
   uses-material-design: true
