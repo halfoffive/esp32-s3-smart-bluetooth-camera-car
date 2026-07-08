@@ -15,6 +15,16 @@
 ### Fixed
 - `fix(firmware): ble_task.cpp onWrite 回调中 getValue().c_str() 在第一个 0x00 字节处截断控制帧（控制帧 LEN_HI 恒为 0x00），导致所有控制指令被静默丢弃；改为直接 getValue() 拷贝 std::string 保留完整二进制。`
 - `fix(firmware): motor_task.cpp ledcAttach 自动分配通道 0 与 esp_camera 的 LEDC_CHANNEL_0 冲突，覆盖左轮 PWM；改用 ledcAttachChannel 显式指定通道 1/2。`
+- `fix(firmware): motor_task.cpp target_pwm 未钳位，speed_pct>100 时溢出 V_MAX_PWM 导致遥测与 turn_bias 计算错误；包裹 clamp_pwm 防御。`
+- `fix(firmware): speed_sensor.cpp vTaskDelay（相对延时）改为 vTaskDelayUntil（绝对节拍），消除采样窗口漂移。`
+- `fix(app): ble_controller.dart _onConnected 中 sendControl(0,0,0) 因 status 仍为 connecting 被守卫跳过；将 status=connected 移到 sendControl 之前。`
+- `fix(app): ble_controller.dart _onConnected catch 块未取消 _connSub/_imageSub/_telemetrySub，残留订阅触发回调；增加 cancel 清理。`
+- `fix(app): ble_controller.dart 异步回调无 mounted 检查，dispose 后 setState 崩溃；在所有 await 后加 mounted 守卫，dispose 首行设 _userDisconnect。`
+- `fix(app): tilt_controller.dart stop 指令被节流丢弃，小车不停车；speedPct==0 时绕过节流立即发送。`
+- `fix(app): camera_viewport.dart Image.memory 缺少 errorBuilder，坏帧导致红屏；增加 errorBuilder 返回空 SizedBox。`
+- `fix(app): frame_stream.dart Future 链缺少 .catchError，单次 FFI 异常永久中断帧/遥测流；增加 catchError 保持链存活。`
+- `fix(ci/app): macOS rust_target 从 x86_64-apple-darwin 改为 aarch64-apple-darwin（macos-latest 现为 arm64 runner）。`
+- `fix(ci/app): release job 不再依赖 cargo-doc；download-artifact 从 v4 升级到 v7；Linux 依赖步骤条件改为 matrix.flutter_target == 'linux'。`
 - `fix(app): pubspec.yaml 列出的 flutter_rust_bridge_codegen 不是 Dart 包（实为 crates.io 上的 Rust crate），导致 flutter pub get 失败；移除该 dev_dependency，codegen 改由 cargo install 提供（CI 已配置）。`
 - `fix(firmware): motor_task.cpp 迁移至 Arduino-ESP32 v3.x LEDC API（ledcAttach + ledcWrite(pin, duty)），修复 CI 因 ledcSetup/ledcAttachPin/LEDC_CHANNEL_* 在 v3.x 被移除导致的编译失败。`
 - `fix(app): 修正 ble_controller.dart 中 flutter_reactive_ble subscribeToCharacteristic 的订阅类型（Stream<List<int>>），移除已废弃的 CharacteristicValue 提取辅助函数。`
