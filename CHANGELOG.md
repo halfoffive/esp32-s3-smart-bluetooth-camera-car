@@ -48,6 +48,9 @@
 - fix(app): `keyboard_controller.dart` 补回 `widgets.dart` 的 `show FocusNode, KeyEventResult;`（`KeyEventResult` 由 `widgets.dart` 再导出，不在 `services.dart`），修复 Linux/桌面构建报 `Type 'KeyEventResult' not found`。此前一次变更误将其从 `show` 子句移除。
 - fix(ci/app): Android compileSdk patch 按 Gradle DSL 区分语法 —— Kotlin DSL（`build.gradle.kts`）产出 `compileSdk = 35`（带 `=`），Groovy（`build.gradle`）产出 `compileSdk 35`（不带 `=`）；`subprojects` 注入块同步区分。修复原单条 sed 对 `.gradle.kts` 生成非法 `compileSdk 35` 导致 Gradle 报 `Unexpected tokens`。
 - fix(app/rust): 修复 clippy 警告 —— `image.rs` `push()` 合并 if/else 重复赋值（`branches_sharing_code`）；`api.rs` `handle_notify_packet` 用 `?` 扁平化 Option 并合并相同 match 臂（`match_same_arms`）；`ble.rs` `crc8` 补括号（`precedence`）。
+- fix(ci): 升级 `actions/checkout`/`cache`/`upload-artifact`/`download-artifact` 至 `@v5`（Node 24 运行时），修复 GitHub Actions 自 2025-09-19 弃用 Node 20 产生的 `Node.js 20 is deprecated` 警告（`app.yml` 与 `firmware.yml` 全量替换；`setup-python@v5` 与 `flutter-action@v2` 已兼容未动）。
+- fix(app/rust): 在 `Cargo.toml` 新增 `[lints.rust]` 段声明 `frb_expand` 为已知 cfg（`unexpected_cfgs = { level = "deny", check-cfg = ['cfg(frb_expand)'] }`），修复 `#[frb(sync)]`/`#[frb(opaque)]` 属性宏内部展开 `cfg(frb_expand)` 触发 `unexpected_cfgs` 导致 `cargo clippy -D warnings` 失败。
+- fix(app/rust): 修复 clippy 风格警告 —— `control.rs` `encode_control` 两处边界判断改 `!(-1..=1).contains(&x)`（`manual_range_contains`）；`image.rs` 分片拼接循环改 `self.received.drain(..).flatten()`（`manual_flatten`）。
 
 ## [0.1.0] - 2026-07-04
 ### Added

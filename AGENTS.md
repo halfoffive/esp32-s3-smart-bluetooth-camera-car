@@ -85,6 +85,8 @@ cargo doc --no-deps --open            # 本地浏览
 - `concurrency.cancel-in-progress` 对 tag 推送应设为不取消（`${{ !startsWith(github.ref, 'refs/tags/') }}`），避免误取消 release。
 - CI 中 Android compileSdk patch 必须按 Gradle DSL 区分语法：Kotlin DSL（`build.gradle.kts`）使用属性赋值 `compileSdk = 35`（**带 `=`**），Groovy DSL（`build.gradle`）使用函数调用 `compileSdk 35`（**不带 `=`**）。原单条 sed 同时套用两种 DSL 会把 `.gradle.kts` 改成非法的 `compileSdk 35`，Gradle 报 `Unexpected tokens (use ';' to separate expressions on same line)`。`subprojects` 注入块同理须按 DSL 区分。
 - `KeyEventResult` 定义在 `package:flutter/src/widgets/focus_manager.dart`，由 `package:flutter/widgets.dart` 再导出（**不在** `services.dart`）。`keyboard_controller.dart` 用 `show` 子句限定 `widgets.dart` 导入时，必须显式列出 `KeyEventResult`（`import 'package:flutter/widgets.dart' show FocusNode, KeyEventResult;`），否则 Linux/桌面构建报 `Type 'KeyEventResult' not found`。`KeyEvent`/`KeyDownEvent`/`KeyUpEvent`/`LogicalKeyboardKey` 才来自 `services.dart`。
+- GitHub Actions 的 `actions/*` 系列（`checkout`/`cache`/`upload-artifact`/`download-artifact`）**必须使用 `@v5`**（Node 24 运行时）。`@v4` 基于 Node 20，自 2025-09-19 起被 GitHub 弃用，runner 会强制在 Node 24 上运行并产生 `Node.js 20 is deprecated` 警告。`actions/setup-python@v5` 与 `subosito/flutter-action@v2` 已是 Node 24 兼容，无需升级。
+- frb v2 属性宏（`#[frb(sync)]` / `#[frb(opaque)]` 等）内部会展开 `#[cfg(frb_expand)]`，rustc 1.80+ 的 check-cfg 机制会将其判为 `unexpected_cfgs`，在 `-D warnings` 下导致 `cargo clippy` 失败。须在 `app/rust/Cargo.toml` 的 `[lints.rust]` 段声明该 cfg 为已知：`unexpected_cfgs = { level = "deny", check-cfg = ['cfg(frb_expand)'] }`（deny 保留对其它未知 cfg 的拒绝，仅放行 `frb_expand`）。不得用散布的 `#[allow(unexpected_cfgs)]` 替代。
 
 ## BLE 关键约定
 
