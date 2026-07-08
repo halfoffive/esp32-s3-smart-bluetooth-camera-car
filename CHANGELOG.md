@@ -9,7 +9,6 @@
 
 ### Changed
 - ci(firmware): 切换 PlatformIO 平台为 pioarduino 社区发行包（`platform-espressif32` stable），从而获得 Arduino-ESP32 core 3.x，与 `motor_task.cpp` 已迁移的 v3.x LEDC API 对齐；官方 platform 仍绑定 core 2.0.17。
-- ci(app): 移除冗余的 `cargo install cargo-expand` 步骤；frb v2.12.0 codegen 不依赖 cargo-expand，且未锁定版本会带来不确定性。
 - ci(app): 为 Flutter Action 启用 `cache: true`，并新增 cargo 缓存（`~/.cargo/registry`、`~/.cargo/git`、`app/rust/target`），减少 CI 重复编译耗时。
 - ci: build-matrix 与 cargo-doc job 显式声明 `permissions: contents: read`，release job 按需授予 `contents: write`，实现最小权限原则。
 
@@ -40,6 +39,7 @@
 - docs: `CHANGELOG.md` 链接占位符替换为实际仓库；`smart-bt-camera-car` spec/tasks 同步 `esptool.py merge-bin`；`app/rust/README.md` 修正 `api.rs`；`AGENTS.md` mergebin 条目去重、仓库边界补充 fix-ci spec。
 - fix(app): `ble_controller.dart` 重连状态机加固：`_onDisconnected` 幂等守卫防 `_reconnectAttempts` 双重自增；`_attemptReconnect` 置 `connecting` 防重连失败卡死；`_initGeneration` 计数器 + try/catch/finally 全路径 generation 守卫，防旧 `_onConnected` 从 await 恢复后打断新连接或覆盖特征订阅；`connect()` 重置 `_initializing`。
 - fix(app/rust): 删除 3 处 `#[frb(named_args)]`（`api.rs`/`ble.rs`/`control.rs`），该属性在 frb v2 中不存在（v1 旧属性），导致 `flutter_rust_bridge_codegen generate` panic、所有平台 CI 失败。frb v2 默认即生成 Dart 命名参数。
+- fix(ci/app): `flutter_rust_bridge_codegen generate` 需要 `cargo-expand`，在 `app.yml` 中预装并锁定版本；同时补齐 `freezed_annotation`/`freezed`/`build_runner` 依赖，修复 `MissingDep: Please add freezed to your dev_dependencies` 错误。
 
 ## [0.1.0] - 2026-07-04
 ### Added

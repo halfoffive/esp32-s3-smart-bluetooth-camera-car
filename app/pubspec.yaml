@@ -21,11 +21,16 @@ dependencies:
   flutter_riverpod: ^2.5.1
   # 轻量 KV 存储
   shared_preferences: ^2.2.3
+  # freezed 运行时注解（frb v2 生成代码依赖）
+  freezed_annotation: ^2.4.1
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
+  # freezed 代码生成（frb v2 生成代码需要）
+  freezed: ^2.5.7
+  build_runner: ^2.4.11
 
 flutter:
   uses-material-design: true

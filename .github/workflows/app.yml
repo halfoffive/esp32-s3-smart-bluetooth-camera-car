@@ -60,30 +60,34 @@ jobs:
           key: cargo-${{ runner.os }}-${{ hashFiles('app/rust/Cargo.lock', 'app/rust/Cargo.toml') }}
           restore-keys: cargo-${{ runner.os }}-
 
-      # 5. 安装 flutter_rust_bridge_codegen（cargo 官方推荐安装方式）
+      # 5. 预装 cargo-expand，frb v2.12.0 codegen 依赖它解析 Rust 宏
+      - name: Install cargo-expand
+        run: cargo install cargo-expand --version 1.0.88 --locked
+
+      # 6. 安装 flutter_rust_bridge_codegen（cargo 官方推荐安装方式）
       # app/rust/src/frb_generated.rs 与 app/lib/src/rust/ 均为 gitignored，
       # 必须在 CI 中重新生成，否则 lib.rs 的 `mod frb_generated;` 会导致 E0583。
       - name: Install flutter_rust_bridge_codegen
         run: cargo install flutter_rust_bridge_codegen --version 2.12.0 --locked
 
-      # 6. 清理平台目录，避免残留文件导致 flutter create . 识别为已有目录而跳过生成
+      # 7. 清理平台目录，避免残留文件导致 flutter create . 识别为已有目录而跳过生成
       - name: Clean platform directories
         run: rm -rf app/android app/ios app/linux app/macos app/windows
         shell: bash
 
-      # 7. 补全 Flutter 平台原生目录（已存在则无副作用，不覆盖 lib/ 与 pubspec.yaml）
+      # 8. 补全 Flutter 平台原生目录（已存在则无副作用，不覆盖 lib/ 与 pubspec.yaml）
       - name: Bootstrap Flutter platforms
         run: cd app && flutter create . --platforms=android,linux,windows,macos --org com.smartcar --project-name smart_car_remote
 
-      # 8. 生成 Rust ↔ Dart 绑定代码（产出 frb_generated.rs）
+      # 9. 生成 Rust ↔ Dart 绑定代码（产出 frb_generated.rs）
       - name: Generate flutter_rust_bridge bindings
         run: cd app && flutter_rust_bridge_codegen generate
 
-      # 9. 生成 Rust 子 crate 文档（不编译依赖、开启全部 feature，要求无警告）
+      # 10. 生成 Rust 子 crate 文档（不编译依赖、开启全部 feature，要求无警告）
       - name: Generate cargo doc
         run: cd app/rust && cargo doc --no-deps --all-features
 
-      # 10. 上传文档产物
+      # 11. 上传文档产物
       - name: Upload cargo doc
         uses: actions/upload-artifact@v4
         with:
@@ -139,20 +143,24 @@ jobs:
           key: cargo-${{ runner.os }}-${{ hashFiles('app/rust/Cargo.lock', 'app/rust/Cargo.toml') }}
           restore-keys: cargo-${{ runner.os }}-
 
-      # 5. 安装 flutter_rust_bridge_codegen（cargo 官方推荐安装方式）
+      # 5. 预装 cargo-expand，frb v2.12.0 codegen 依赖它解析 Rust 宏
+      - name: Install cargo-expand
+        run: cargo install cargo-expand --version 1.0.88 --locked
+
+      # 6. 安装 flutter_rust_bridge_codegen（cargo 官方推荐安装方式）
       - name: Install flutter_rust_bridge_codegen
         run: cargo install flutter_rust_bridge_codegen --version 2.12.0 --locked
 
-      # 6. 清理平台目录，避免残留文件导致 flutter create . 识别为已有目录而跳过生成
+      # 7. 清理平台目录，避免残留文件导致 flutter create . 识别为已有目录而跳过生成
       - name: Clean platform directories
         run: rm -rf app/android app/ios app/linux app/macos app/windows
         shell: bash
 
-      # 7. 补全 Flutter 平台原生目录（已存在则无副作用，不覆盖 lib/ 与 pubspec.yaml）
+      # 8. 补全 Flutter 平台原生目录（已存在则无副作用，不覆盖 lib/ 与 pubspec.yaml）
       - name: Bootstrap Flutter platforms
         run: cd app && flutter create . --platforms=android,linux,windows,macos --org com.smartcar --project-name smart_car_remote
 
-      # 8. patch Android compileSdk 至 35（仅 Android 构建需要）：flutter_reactive_ble 依赖 AndroidX 1.7.x
+      # 9. patch Android compileSdk 至 35（仅 Android 构建需要）：flutter_reactive_ble 依赖 AndroidX 1.7.x
       #      要求 compileSdk ≥ 34；android/ 由 flutter create 生成、不在版本控制中，须在 CI 内 patch
       - name: Patch Android compileSdk
         if: matrix.flutter_target == 'apk'
@@ -186,26 +194,26 @@ jobs:
           EOF
           fi
 
-      # 9. 生成 Rust ↔ Dart 绑定代码
+      # 10. 生成 Rust ↔ Dart 绑定代码
       - name: Generate flutter_rust_bridge bindings
         run: cd app && flutter_rust_bridge_codegen generate
 
-      # 10. 安装 Linux 桌面构建依赖（仅 ubuntu runner 需要，apk/linux 共用）
+      # 11. 安装 Linux 桌面构建依赖（仅 ubuntu runner 需要，apk/linux 共用）
       - name: Install Linux desktop dependencies
         if: matrix.flutter_target == 'linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y ninja-build libgtk-3-dev clang cmake
 
-      # 11. 添加 Rust 交叉编译目标（按矩阵条目）
+      # 12. 添加 Rust 交叉编译目标（按矩阵条目）
       - name: Add Rust target
         run: rustup target add ${{ matrix.rust_target }}
 
-      # 12. 拉取 Dart 依赖
+      # 13. 拉取 Dart 依赖
       - name: Flutter pub get
         run: cd app && flutter pub get
 
-      # 13. 按平台分支构建 release 产物
+      # 14. 按平台分支构建 release 产物
       - name: Build Android APK
         if: matrix.flutter_target == 'apk'
         run: cd app && flutter build apk --release
@@ -222,7 +230,7 @@ jobs:
         if: matrix.flutter_target == 'macos'
         run: cd app && flutter build macos --release
 
-      # 14. 上传构建产物（按平台区分命名）
+      # 15. 上传构建产物（按平台区分命名）
       - name: Upload Android artifact
         if: matrix.flutter_target == 'apk'
         uses: actions/upload-artifact@v4
