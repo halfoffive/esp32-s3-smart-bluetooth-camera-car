@@ -133,6 +133,7 @@ class BleController extends StateNotifier<BleState> {
   Timer? _reconnectTimer;
   String? _lastDeviceId; // 重连目标
   bool _initializing = false; // _onConnected 重入保护（connected 事件可能重复触发）
+  int _initGeneration = 0; // _onConnected 代际计数器：旧 finally 不破坏新 _onConnected 的保护
 
   /// 释放资源（ProviderScope dispose 时自动调用）。
   @override
@@ -235,6 +236,9 @@ class BleController extends StateNotifier<BleState> {
     _reconnectTimer = null;
     _cancelCharacteristicSubs();
     _connSub?.cancel();
+    // 重置重入保护：旧 _onConnected 可能仍挂起在 await，
+    // 切换设备后新 _onConnected 不应被旧 _initializing=true 吞掉。
+    _initializing = false;
 
     _lastDeviceId = device.id;
     state = BleState(
@@ -274,6 +278,7 @@ class BleController extends StateNotifier<BleState> {
     // 重入保护：connected 事件可能重复触发，避免并发初始化破坏订阅
     if (_initializing) return;
     _initializing = true;
+    final gen = ++_initGeneration;
     try {
       final deviceId = state.deviceId ?? _lastDeviceId;
       if (deviceId == null) {
@@ -349,7 +354,9 @@ class BleController extends StateNotifier<BleState> {
         _onDisconnected(error: '连接初始化失败: $e');
       }
     } finally {
-      _initializing = false;
+      // 仅最新一代 _onConnected 才重置 _initializing：旧 _onConnected 从 await
+      // 恢复后 generation 不匹配，不会破坏新 _onConnected 已设的 _initializing=true。
+      if (gen == _initGeneration) _initializing = false;
     }
   }
 
@@ -405,8 +412,13 @@ class BleController extends StateNotifier<BleState> {
 
     // 重置重入保护：即使旧 _onConnected 仍挂起在 await，
     // 新重连触发的 _onConnected 也能进入（旧 _onConnected 恢复后
-    // finally 仍会置 _initializing = false，幂等无害）。
+    // finally 受 generation 守卫，generation 不匹配不会重置 _initializing）。
     _initializing = false;
+
+    // 重连尝试失败时（_onDisconnected 被触发）status 必须是 connecting 而非
+    // reconnecting：幂等守卫只对 reconnecting/disconnected 命中，
+    // 若仍是 reconnecting 会被守卫吞掉，状态永久卡在 reconnecting 不再调度新一轮。
+    state = state.copyWith(status: ConnectionStatus.connecting);
 
     _connSub?.cancel();
     _connSub = _ble.connectToDevice(id: id).listen(
