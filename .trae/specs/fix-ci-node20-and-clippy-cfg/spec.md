@@ -7,11 +7,11 @@ GitHub Actions 已弃用 Node.js 20 运行时（2025-09-19 公告），`actions/
 ## What Changes
 
 ### CI Actions 升级（Node 24 原生）
-- `.github/workflows/app.yml` 与 `.github/workflows/firmware.yml` 中所有 `actions/checkout@v4` → `@v5`
-- 所有 `actions/cache@v4` → `@v5`
-- 所有 `actions/upload-artifact@v4` → `@v5`
-- 所有 `actions/download-artifact@v4` → `@v5`
-- `actions/setup-python@v5` 已是 v5，不动；`subosito/flutter-action@v2` 维持 v2（最新稳定，未受 Node 20 弃用影响）
+- `.github/workflows/app.yml` 与 `.github/workflows/firmware.yml` 中所有 `actions/checkout@v4/v5` → `@v7`
+- 所有 `actions/cache@v4/v5` → `@v6`
+- 所有 `actions/upload-artifact@v4/v5` → `@v7`
+- 所有 `actions/download-artifact@v4/v5` → `@v8`
+- `actions/setup-python@v5` → `@v6`；`subosito/flutter-action@v2` 维持 v2（最新稳定，已兼容 Node 24）
 
 ### Clippy `unexpected_cfgs` 修复（`frb_expand`）
 - `app/rust/Cargo.toml` 新增 `[lints.rust]` 段，声明 `frb_expand` 为已知 cfg：
@@ -43,11 +43,12 @@ GitHub Actions 已弃用 Node.js 20 运行时（2025-09-19 公告），`actions/
 ## ADDED Requirements
 
 ### Requirement: CI Actions 须运行在受支持的 Node 运行时
-CI 工作流中引用的所有 `actions/*` 仓库名空间下的 action SHALL 使用以 Node 24 为运行时的稳定大版本（`@v5` 或更新），不得继续使用以 Node 20 为运行时的 `@v4`，避免触发 GitHub Actions 的 Node 20 弃用警告。
+CI 工作流中引用的所有 `actions/*` 仓库名空间下的 action SHALL 使用以 Node 24 为运行时的稳定大版本（`actions/checkout@v7`、`actions/cache@v6`、`actions/upload-artifact@v7`、`actions/download-artifact@v8`、`actions/setup-python@v6`），不得继续使用以 Node 20 为运行时的 `@v4`/`@v5`，避免触发 GitHub Actions 的 Node 20 弃用警告。
 
 #### Scenario: 工作流不再触发 Node 20 弃用警告
 - **WHEN** CI 工作流在 GitHub-hosted runner 上执行
-- **THEN** `actions/checkout` / `actions/cache` / `actions/upload-artifact` / `actions/download-artifact` 均以 v5 运行
+- **THEN** `actions/checkout` / `actions/cache` / `actions/upload-artifact` / `actions/download-artifact` 分别以 v7 / v6 / v7 / v8 运行
+- **AND** `actions/setup-python` 以 v6 运行
 - **AND** 作业日志中不再出现 `Node.js 20 is deprecated` 警告
 
 ### Requirement: Rust crate 须声明 frb 内部 cfg 为已知

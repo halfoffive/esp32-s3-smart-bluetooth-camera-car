@@ -33,8 +33,8 @@ CI SHALL 在 PlatformIO 编译完成后，使用 `esptool.py --chip esp32s3 merg
 
 ### Requirement: Android compileSdk 强制提升到 35
 CI SHALL 在 `flutter create .` 之后、`flutter pub get` / `flutter build` 之前，对生成的 `android/` 目录执行 patch：
-1. 将 `android/app/build.gradle` 中的 `compileSdk` 提升至 35
-2. 在 `android/build.gradle` 注入 `subprojects` 块，对所有 Android library/application 模块强制 `compileSdk 35`
+1. 将 `android/app/build.gradle(.kts)` 中的 `compileSdk` 提升至 35（按 Kotlin/Groovy DSL 区分语法）
+2. 在 `android/build.gradle(.kts)` 注入 `subprojects` 块，对所有 Android library/application 模块通过反射调用 `setCompileSdk`/`setCompileSdkVersion(Int)` 强制 `compileSdk 35`，避免 AGP/Gradle 版本差异导致 `Unresolved reference 'compileSdk'`
 
 #### Scenario: 插件模块编译通过
 - **WHEN** `flutter build apk --release` 触发

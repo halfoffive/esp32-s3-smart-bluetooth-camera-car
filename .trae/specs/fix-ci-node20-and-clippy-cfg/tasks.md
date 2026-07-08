@@ -1,16 +1,16 @@
 # Tasks
 
 - [x] Task 1: 升级 GitHub Actions 至 Node 24 原生版本
-  - [x] 1.1 `.github/workflows/app.yml`：所有 `actions/checkout@v4` → `@v5`（2 处：cargo-doc job 第 39 行、build-matrix job 第 126 行）
-  - [x] 1.2 `.github/workflows/app.yml`：所有 `actions/cache@v4` → `@v5`（2 处：第 54、141 行）
-  - [x] 1.3 `.github/workflows/app.yml`：所有 `actions/upload-artifact@v4` → `@v5`（5 处：第 96、274、281、288、295 行）
-  - [x] 1.4 `.github/workflows/app.yml`：`actions/download-artifact@v4` → `@v5`（1 处：第 310 行）
-  - [x] 1.5 `.github/workflows/firmware.yml`：`actions/checkout@v4` → `@v5`（2 处：第 40、93 行）
-  - [x] 1.6 `.github/workflows/firmware.yml`：`actions/cache@v4` → `@v5`（1 处：第 57 行）
-  - [x] 1.7 `.github/workflows/firmware.yml`：`actions/upload-artifact@v4` → `@v5`（1 处：第 80 行）
-  - [x] 1.8 `.github/workflows/firmware.yml`：`actions/download-artifact@v4` → `@v5`（1 处：第 96 行）
-  - [x] 1.9 不动 `actions/setup-python@v5`（已是 v5）与 `subosito/flutter-action@v2`（最新稳定，未受 Node 20 弃用影响）
-  - 验证：`grep -nE 'actions/(checkout|cache|upload-artifact|download-artifact)@v4' .github/workflows/*.yml` 无输出
+  - [x] 1.1 `.github/workflows/app.yml`：所有 `actions/checkout@v4/v5` → `@v7`
+  - [x] 1.2 `.github/workflows/app.yml`：所有 `actions/cache@v4/v5` → `@v6`
+  - [x] 1.3 `.github/workflows/app.yml`：所有 `actions/upload-artifact@v4/v5` → `@v7`
+  - [x] 1.4 `.github/workflows/app.yml`：`actions/download-artifact@v4/v5` → `@v8`
+  - [x] 1.5 `.github/workflows/firmware.yml`：`actions/checkout@v4/v5` → `@v7`
+  - [x] 1.6 `.github/workflows/firmware.yml`：`actions/cache@v4/v5` → `@v6`
+  - [x] 1.7 `.github/workflows/firmware.yml`：`actions/upload-artifact@v4/v5` → `@v7`
+  - [x] 1.8 `.github/workflows/firmware.yml`：`actions/download-artifact@v4/v5` → `@v8`
+  - [x] 1.9 `.github/workflows/firmware.yml`：`actions/setup-python@v5` → `@v6`；`subosito/flutter-action@v2` 维持 v2（已兼容 Node 24）
+  - 验证：`grep -nE 'actions/(checkout|cache|upload-artifact|download-artifact)@(v4|v5)' .github/workflows/*.yml` 无输出
 
 - [x] Task 2: 声明 `frb_expand` 为已知 cfg（修复 `unexpected_cfgs`）
   - [x] 2.1 `app/rust/Cargo.toml` 末尾新增：

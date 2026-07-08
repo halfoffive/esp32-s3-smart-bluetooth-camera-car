@@ -1,16 +1,16 @@
 # Checklist
 
 ## Node 20 弃用（Actions 升级）
-- [x] `.github/workflows/app.yml` 中无 `actions/checkout@v4`（grep 验证）
-- [x] `.github/workflows/app.yml` 中无 `actions/cache@v4`
-- [x] `.github/workflows/app.yml` 中无 `actions/upload-artifact@v4`
-- [x] `.github/workflows/app.yml` 中无 `actions/download-artifact@v4`
-- [x] `.github/workflows/firmware.yml` 中无 `actions/checkout@v4`
-- [x] `.github/workflows/firmware.yml` 中无 `actions/cache@v4`
-- [x] `.github/workflows/firmware.yml` 中无 `actions/upload-artifact@v4`
-- [x] `.github/workflows/firmware.yml` 中无 `actions/download-artifact@v4`
-- [x] `actions/setup-python@v5` 与 `subosito/flutter-action@v2` 未被改动
-- [x] `grep -rnE 'actions/(checkout|cache|upload-artifact|download-artifact)@v4' .github/workflows/` 无输出
+- [x] `.github/workflows/app.yml` 中无 `actions/checkout@v4/v5`
+- [x] `.github/workflows/app.yml` 中无 `actions/cache@v4/v5`
+- [x] `.github/workflows/app.yml` 中无 `actions/upload-artifact@v4/v5`
+- [x] `.github/workflows/app.yml` 中无 `actions/download-artifact@v4/v5`
+- [x] `.github/workflows/firmware.yml` 中无 `actions/checkout@v4/v5`
+- [x] `.github/workflows/firmware.yml` 中无 `actions/cache@v4/v5`
+- [x] `.github/workflows/firmware.yml` 中无 `actions/upload-artifact@v4/v5`
+- [x] `.github/workflows/firmware.yml` 中无 `actions/download-artifact@v4/v5`
+- [x] `.github/workflows/firmware.yml` 中 `actions/setup-python@v6` 已升级
+- [x] `grep -rnE 'actions/(checkout|cache|upload-artifact|download-artifact)@(v4|v5)' .github/workflows/` 无输出
 
 ## Clippy `unexpected_cfgs`（frb_expand）
 - [x] `app/rust/Cargo.toml` 含 `[lints.rust]` 段

@@ -18,14 +18,14 @@
 - feat(app): Material 3 **默认配色**替代自定义橙黑 HUD 配色 —— 移除 `AppColors` 类与 `colorSchemeSeed`，结构色（背景/表面/主色/文字）一律取自 `Theme.of(context).colorScheme`；状态语义色由新 `HudStatus` 承载（`Colors.green`/`Colors.amber`/`colorScheme.error`）。`AppTheme` 新增 `light()`/`dark()` 双主题，`main.dart` 接入 `theme`/`darkTheme`/`themeMode`。`joystick`/`camera_viewport`/`telemetry_panel`/`control_panel`/`settings_screen` 同步迁移。
 
 ### Fixed
-- fix(ci): 修正 `.github/workflows/app.yml` 与 `firmware.yml` 中错误的 Actions 版本标签（`upload-artifact@v7` / `download-artifact@v8` / `setup-python@v6` → `@v5`），避免 workflow 解析失败。
+- fix(ci): 将 `.github/workflows/app.yml` 与 `firmware.yml` 中的 `actions/checkout`、`actions/cache`、`actions/upload-artifact`、`actions/download-artifact`、`actions/setup-python` 升级到 Node 24 原生大版本（`@v7`/`@v6`/`@v7`/`@v8`/`@v6`），消除 `Node.js 20 is deprecated` 警告。
 - fix(firmware): 修正 `firmware/platformio.ini` 中 `espressif/esp32-camera` 依赖为 GitHub 源 `https://github.com/espressif/esp32-camera.git#v2.1.7`，修复 PlatformIO Library Registry 中 `^2.4.0`/`^2.1.7` 均不存在导致的 `UnknownPackageError`。
 - fix(firmware): 移除 `ble_task.cpp` 中 NimBLE 栈不存在的 `BLECharacteristic::getSubscribedCount()` 调用，改为直接调用 `send_image_frame()`（NimBLE 的 `notify()` 在无订阅时自动跳过），修复启用 `-DUSE_NIMBLE` 后的编译失败。
-- fix(ci/app): 修正 Android compileSdk patch 的 Kotlin DSL 注入块，将已弃用的 `com.android.build.gradle.BaseExtension` 替换为 `com.android.build.api.dsl.CommonExtension`，修复 Gradle `Unresolved reference 'compileSdk'` 构建失败。
+- fix(ci/app): 修正 Android compileSdk patch 的 Kotlin DSL 注入块，将 `CommonExtension` 替换为反射调用 `setCompileSdk`/`setCompileSdkVersion(Int)`，修复 Gradle `Unresolved reference 'compileSdk'` 构建失败。
 - fix(app): `pubspec.yaml` 中 `flutter_rust_bridge` 的版本约束 `=2.12.0` 不符合 Dart pub 语法（`=` 是 Cargo 语法），导致 `flutter pub get` 报 `Invalid version constraint` 失败；改为精确版本 `2.12.0`。
 - fix(app): `ble_controller.dart` 修复多个状态机竞态：connect() 取消残留扫描订阅/定时器；startScan() 超时回调早退时补 complete 防止 Future 永久挂起；_onConnected() 置 connected 前取消残留 _reconnectTimer，避免健康连接被自残式重连断开；connect() 与 _attemptReconnect() 重置 _initializing 时同步递增 _initGeneration，防止旧 _onConnected 从 await 恢复后干扰新连接。
 - fix(app): `keyboard_controller.dart` 移除 `widgets.dart` 中对 `KeyEventResult` 的 show import（由 `services.dart` 全量提供），避免潜在编译错误。
-- fix(ci): 将 `actions/checkout`、`upload-artifact`、`download-artifact`、`cache`、`setup-python` 修正到实际存在的稳定大版本（`@v4`/`@v5`），修复因 v7/v6 标签不存在导致 CI workflow 解析失败。
+- fix(ci): 确认 `actions/checkout@v7`、`actions/cache@v6`、`actions/upload-artifact@v7`、`actions/download-artifact@v8`、`actions/setup-python@v6` 大版本 tag 均存在且为 Node 24 运行时，回退此前错误的 `@v5` 回退，避免 Node 20 弃用警告。
 - fix(ci/app): 修正 Android compileSdk `sed` 正则，要求至少一位数字并显式匹配 `compileSdk = flutter.compileSdkVersion` 引用形式，避免 patch 后生成非法 Kotlin 导致 Gradle 失败。
 - fix(ci/firmware): 将 release 拆分为独立 job，build job 仅保留 `permissions: contents: read`，release job 按需授予 `permissions: contents: write`，符合最小权限原则。
 - fix(app): `pubspec.yaml` 列出的 `flutter_rust_bridge_codegen` 不是 Dart 包（实为 crates.io 上的 Rust crate），导致 `flutter pub get` 失败；移除该 `dev_dependency`，codegen 改由 `cargo install` 提供（CI 已配置）。
@@ -52,7 +52,7 @@
 - fix(app): `keyboard_controller.dart` 补回 `widgets.dart` 的 `show FocusNode, KeyEventResult;`（`KeyEventResult` 由 `widgets.dart` 再导出，不在 `services.dart`），修复 Linux/桌面构建报 `Type 'KeyEventResult' not found`。此前一次变更误将其从 `show` 子句移除。
 - fix(ci/app): Android compileSdk patch 按 Gradle DSL 区分语法 —— Kotlin DSL（`build.gradle.kts`）产出 `compileSdk = 35`（带 `=`），Groovy（`build.gradle`）产出 `compileSdk 35`（不带 `=`）；`subprojects` 注入块同步区分。修复原单条 sed 对 `.gradle.kts` 生成非法 `compileSdk 35` 导致 Gradle 报 `Unexpected tokens`。
 - fix(app/rust): 修复 clippy 警告 —— `image.rs` `push()` 合并 if/else 重复赋值（`branches_sharing_code`）；`api.rs` `handle_notify_packet` 用 `?` 扁平化 Option 并合并相同 match 臂（`match_same_arms`）；`ble.rs` `crc8` 补括号（`precedence`）。
-- fix(ci): 升级 `actions/checkout`/`cache`/`upload-artifact`/`download-artifact` 至 `@v5`（Node 24 运行时），修复 GitHub Actions 自 2025-09-19 弃用 Node 20 产生的 `Node.js 20 is deprecated` 警告（`app.yml` 与 `firmware.yml` 全量替换；`setup-python@v5` 与 `flutter-action@v2` 已兼容未动）。
+- fix(ci): 升级 `actions/checkout`/`cache`/`upload-artifact`/`download-artifact` 至 `@v7`/`@v6`/`@v7`/`@v8`，`setup-python` 至 `@v6`（Node 24 运行时），修复 GitHub Actions 自 2025-09-19 弃用 Node 20 产生的 `Node.js 20 is deprecated` 警告（`app.yml` 与 `firmware.yml` 全量替换）。
 - fix(app/rust): 在 `Cargo.toml` 新增 `[lints.rust]` 段声明 `frb_expand` 为已知 cfg（`unexpected_cfgs = { level = "deny", check-cfg = ['cfg(frb_expand)'] }`），修复 `#[frb(sync)]`/`#[frb(opaque)]` 属性宏内部展开 `cfg(frb_expand)` 触发 `unexpected_cfgs` 导致 `cargo clippy -D warnings` 失败。
 - fix(app/rust): 修复 clippy 风格警告 —— `control.rs` `encode_control` 两处边界判断改 `!(-1..=1).contains(&x)`（`manual_range_contains`）；`image.rs` 分片拼接循环改 `self.received.drain(..).flatten()`（`manual_flatten`）。
 
