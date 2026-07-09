@@ -95,4 +95,26 @@
 #define TASK_STACK_MOTOR      4096
 #define TASK_STACK_SPEED      4096
 
+/* ============================================================
+ * NVS 持久化（Preferences.h，Arduino-ESP32 内置）
+ * - WiFi 配置：供未来 WiFi 推流 / OTA 升级使用，当前仅存储
+ * - PID / 物理参数：供 App 下发覆盖 config.h 编译期默认值
+ * ============================================================ */
+#define WIFI_NVS_NAMESPACE   "wifi_cfg"
+#define WIFI_NVS_KEY_SSID    "ssid"
+#define WIFI_NVS_KEY_PASS    "pass"
+
+#define PARAMS_NVS_NAMESPACE "params"
+#define PARAMS_NVS_KEY_KP            "kp"
+#define PARAMS_NVS_KEY_KI            "ki"
+#define PARAMS_NVS_KEY_KD            "kd"
+#define PARAMS_NVS_KEY_RAMP_MS        "ramp_ms"
+#define PARAMS_NVS_KEY_WHEEL_DIA      "wheel_dia"
+#define PARAMS_NVS_KEY_WHEEL_BASE     "wheel_base"
+#define PARAMS_NVS_KEY_ENC_SLOTS      "enc_slots"
+
+/* WiFi 配置长度上限（与 App/Rust encode_set_wifi 校验一致） */
+#define WIFI_SSID_MAX_LEN   32
+#define WIFI_PASS_MAX_LEN   64
+
 #endif // CONFIG_H
