@@ -12,6 +12,7 @@
 #include "freertos/semphr.h"
 #include "config.h"
 #include "speed_sensor.h"
+#include "params_store.h"  // params_store_load_physical
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -22,6 +23,13 @@
  * ============================================================ */
 static volatile uint32_t g_left_pulses = 0;
 static volatile uint32_t g_right_pulses = 0;
+
+/* 物理参数（App 下发覆盖，speed_task 读取）
+ * u16/u8 单字读写 ESP32 上原子，10ms 周期容忍跨字段不一致，无需 mutex
+ * g_wheel_base_mm 当前未参与换算，仅持久化以备转向半径等后续计算 */
+static volatile uint16_t g_wheel_dia_mm = WHEEL_DIAMETER_MM;
+static volatile uint16_t g_wheel_base_mm = WHEEL_TRACK_MM;
+static volatile uint8_t  g_enc_slots = ENCODER_SLOTS;
 
 /* 共享测速数据 + 自旋锁
  * 同一把锁同时保护 SpeedData 写入与脉冲计数器的"读-清零"原子操作
@@ -63,6 +71,16 @@ bool speed_sensor_init() {
     attachInterrupt(digitalPinToInterrupt(SPEED_IR_LEFT_GPIO),  isr_left,  FALLING);
     attachInterrupt(digitalPinToInterrupt(SPEED_IR_RIGHT_GPIO), isr_right, FALLING);
 
+    /* NVS 加载物理参数：无已存值时回退 config.h 编译期默认 */
+    uint16_t wheel_dia = WHEEL_DIAMETER_MM;
+    uint16_t wheel_base = WHEEL_TRACK_MM;
+    uint8_t  enc_slots = ENCODER_SLOTS;
+    if (params_store_load_physical(&wheel_dia, &wheel_base, &enc_slots)) {
+        g_wheel_dia_mm = wheel_dia;
+        g_wheel_base_mm = wheel_base;
+        g_enc_slots = enc_slots;
+    }
+
     return true;
 }
 
@@ -77,11 +95,19 @@ SpeedData speed_sensor_get() {
     return snapshot;
 }
 
+void speed_sensor_set_physical(uint16_t wheel_dia_mm, uint16_t wheel_base_mm, uint8_t enc_slots) {
+    /* 单字写原子，无需 critical section */
+    g_wheel_dia_mm = wheel_dia_mm;
+    g_wheel_base_mm = wheel_base_mm;
+    g_enc_slots = enc_slots;
+}
+
 /* ============================================================
  * 测速任务：每 CONTROL_PERIOD_MS (10ms) 计算一次
  * 公式严格遵循 spec.md "转速测量" 章节：
- *   RPM = (pulses × 60) / (window_sec × ENCODER_SLOTS)
- *   v   = π × D × RPM / 60
+ *   RPM = (pulses × 60) / (window_sec × enc_slots)
+ *   v   = π × wheel_dia_mm × RPM / 60
+ * （enc_slots / wheel_dia_mm 为运行时变量，由 NVS 或 config.h 默认提供）
  * ============================================================ */
 void speed_task(void* arg) {
     (void)arg;
@@ -109,18 +135,24 @@ void speed_task(void* arg) {
         g_right_pulses = 0;
         portEXIT_CRITICAL(&g_speed_mux);
 
-        // RPM = (pulses × 60000) / (delta_ms × ENCODER_SLOTS)
+        // 物理参数快照（volatile 单字读原子，本周期内一致）
+        const uint16_t wheel_dia_mm = g_wheel_dia_mm;
+        const uint8_t  enc_slots   = g_enc_slots;
+
+        // RPM = (pulses × 60000) / (delta_ms × enc_slots)
         // 推导: 60 / (delta_ms/1000) = 60000/delta_ms
         // pulses × 60000 在 uint32 范围内安全（10ms 窗口脉冲数有限）
-        uint32_t left_rpm_u  = (left_pulses  * 60000UL) / (delta_ms * ENCODER_SLOTS);
-        uint32_t right_rpm_u = (right_pulses * 60000UL) / (delta_ms * ENCODER_SLOTS);
+        uint32_t divisor = delta_ms * (uint32_t)enc_slots;
+        if (divisor == 0) divisor = 1;  // 防御：enc_slots 异常时避免除零
+        uint32_t left_rpm_u  = (left_pulses  * 60000UL) / divisor;
+        uint32_t right_rpm_u = (right_pulses * 60000UL) / divisor;
 
         // 饱和到 int16 范围，避免有符号溢出为负值
         if (left_rpm_u  > 32767) left_rpm_u  = 32767;
         if (right_rpm_u > 32767) right_rpm_u = 32767;
 
-        // 线速度 v_mm_s = π × WHEEL_DIAMETER_MM × RPM / 60
-        float wheel_circ_mm = (float)M_PI * (float)WHEEL_DIAMETER_MM;
+        // 线速度 v_mm_s = π × wheel_dia_mm × RPM / 60
+        float wheel_circ_mm = (float)M_PI * (float)wheel_dia_mm;
         float left_v_mm_s   = wheel_circ_mm * (float)left_rpm_u  / 60.0f;
         float right_v_mm_s  = wheel_circ_mm * (float)right_rpm_u / 60.0f;
 

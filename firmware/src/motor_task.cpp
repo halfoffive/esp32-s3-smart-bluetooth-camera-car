@@ -20,6 +20,7 @@
 
 #include "config.h"
 #include "motor_task.h"
+#include "params_store.h"   // params_store_load_pid
 #include "speed_sensor.h"   // SpeedData / speed_sensor_get()
 #include "ble_task.h"       // ble_set_telemetry()
 
@@ -35,6 +36,13 @@ static volatile int8_t   g_direction = 0;        // -1 后退 / 0 停 / 1 前
 static volatile int8_t   g_turn = 0;             // -1 左 / 0 直 / 1 右
 static volatile uint8_t  g_speed_pct = 0;        // 0-100
 static volatile uint32_t g_cmd_timestamp_ms = 0; // 指令到达时间，用于正弦加速 t 计算
+
+/* PID / 加速参数（App 下发覆盖，控制循环读取）
+ * f32/u32 单字读写 ESP32 上原子，10ms 周期容忍跨字段不一致，无需 mutex */
+static volatile float    g_kp = PID_KP;
+static volatile float    g_ki = PID_KI;
+static volatile float    g_kd = PID_KD;
+static volatile uint32_t g_ramp_ms = T_RAMP_MS;
 
 /* ============================================================
  * 方向引脚辅助函数
@@ -96,6 +104,20 @@ bool motor_init() {
     ledcWrite(MOTOR_L_ENA_GPIO, 0);
     ledcWrite(MOTOR_R_ENB_GPIO, 0);
 
+    /* NVS 加载 PID/加速参数：无已存值时回退 config.h 编译期默认 */
+    float kp, ki, kd;
+    uint32_t ramp_ms;
+    if (!params_store_load_pid(&kp, &ki, &kd, &ramp_ms)) {
+        kp = PID_KP;
+        ki = PID_KI;
+        kd = PID_KD;
+        ramp_ms = T_RAMP_MS;
+    }
+    g_kp = kp;
+    g_ki = ki;
+    g_kd = kd;
+    g_ramp_ms = ramp_ms;
+
     return true;
 }
 
@@ -123,6 +145,22 @@ void motor_stop() {
     stop_right_dir();
 }
 
+void motor_set_pid(float kp, float ki, float kd) {
+    /* 单字写原子，无需 critical section */
+    g_kp = kp;
+    g_ki = ki;
+    g_kd = kd;
+}
+
+void motor_set_ramp(uint32_t ms) {
+    g_ramp_ms = ms;
+}
+
+void motor_set_physical(uint16_t wheel_dia_mm, uint16_t wheel_base_mm, uint8_t enc_slots) {
+    /* 物理参数实际由 speed_sensor 持有，本函数仅转发 */
+    speed_sensor_set_physical(wheel_dia_mm, wheel_base_mm, enc_slots);
+}
+
 /* ============================================================
  * 电机控制任务（10ms 周期）
  * ============================================================ */
@@ -145,12 +183,15 @@ void motor_task(void* arg) {
         uint32_t cmd_ts  = g_cmd_timestamp_ms;
 
         /* 2. 正弦加速：ratio = sin(π/2 * min(t/T, 1))，半周期正弦 0→1 */
+        const uint32_t ramp_ms = g_ramp_ms;  // 单字读原子，本周期内一致
         uint32_t t_ms = millis() - cmd_ts;
         float ratio;
-        if (t_ms >= T_RAMP_MS) {
+        if (ramp_ms == 0) {
+            ratio = 1.0f;  // 防御：ramp 关闭时立即满速
+        } else if (t_ms >= ramp_ms) {
             ratio = 1.0f;
         } else {
-            ratio = sinf((M_PI / 2.0f) * (float)t_ms / (float)T_RAMP_MS);
+            ratio = sinf((M_PI / 2.0f) * (float)t_ms / (float)ramp_ms);
         }
 
         /* 3. 目标 PWM（direction==0 时直接 0） */
@@ -172,6 +213,11 @@ void motor_task(void* arg) {
         SpeedData spd = speed_sensor_get();
 
         if (dir != 0 && turn == 0 && target_pwm > 0) {
+            /* volatile f32 单字读原子，先拷贝到本地 const 再用，避免多次读不一致 */
+            const float kp = g_kp;
+            const float ki = g_ki;
+            const float kd = g_kd;
+
             float dt = (float)CONTROL_PERIOD_MS / 1000.0f; // 0.01s
             float error = (float)spd.left_rpm - (float)spd.right_rpm;
 
@@ -180,7 +226,7 @@ void motor_task(void* arg) {
             if (integral < -PID_INTEGRAL_MAX) integral = -PID_INTEGRAL_MAX;
 
             float derivative = (error - last_error) / dt;
-            float correction = PID_KP * error + PID_KI * integral + PID_KD * derivative;
+            float correction = kp * error + ki * integral + kd * derivative;
             last_error = error;
 
             /* 左轮减 correction/2，右轮加 correction/2 */

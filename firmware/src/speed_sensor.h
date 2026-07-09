@@ -17,5 +17,9 @@ bool speed_sensor_init();
 // 获取当前测速数据（线程安全拷贝）
 SpeedData speed_sensor_get();
 
+// 运行时覆盖物理参数（轮径/轮距/编码器槽数）
+// u16/u8 单字写 ESP32 上原子，无需 critical section
+void speed_sensor_set_physical(uint16_t wheel_dia_mm, uint16_t wheel_base_mm, uint8_t enc_slots);
+
 // 测速 FreeRTOS 任务
 void speed_task(void* arg);

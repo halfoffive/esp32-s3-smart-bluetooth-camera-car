@@ -44,6 +44,23 @@ void motor_set_target(int8_t direction, int8_t turn, uint8_t speed_pct);
 void motor_stop();
 
 /**
+ * 运行时覆盖 PID 参数（App 下发 CMD_SET_PARAMS 后调用）
+ * f32 单字写 ESP32 上原子，无需 critical section
+ */
+void motor_set_pid(float kp, float ki, float kd);
+
+/**
+ * 运行时覆盖正弦加速时长（ms）
+ */
+void motor_set_ramp(uint32_t ms);
+
+/**
+ * 运行时覆盖物理参数（轮径/轮距/编码器槽数）
+ * 实际生效在 speed_sensor，本函数仅转发
+ */
+void motor_set_physical(uint16_t wheel_dia_mm, uint16_t wheel_base_mm, uint8_t enc_slots);
+
+/**
  * 电机 FreeRTOS 任务（10ms 周期）
  * - 正弦加速 + PID 直线平衡 + 遥测上报
  * @param arg 未使用
