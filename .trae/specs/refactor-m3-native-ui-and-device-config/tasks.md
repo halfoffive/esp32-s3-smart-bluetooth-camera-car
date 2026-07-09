@@ -87,7 +87,7 @@
   - [ ] 11.5 `CHANGELOG.md` `[Unreleased]`：Added（NavigationBar + 设备页 / WiFi 配置 / 设置下发设备 / 固件 NVS + 运行时 PID）、Changed（M3 默认字体替代未声明字体 / 设置页组件归一）、Fixed（扫描连接按钮缺失）
   - 验证：文档与代码一致；`grep` 检查无遗漏
 
-- [ ] Task 12: 分批 git 提交（依赖 Task 1-11，按关注点拆分）
+- [x] Task 12: 分批 git 提交（依赖 Task 1-11，按关注点拆分）
   - [ ] 12.1 `refactor(ui): 移除未声明字体引用，统一用 M3 textTheme 角色`（Task 1）
   - [ ] 12.2 `refactor(ui): 控件归一为 M3 原生类型`（Task 2）
   - [ ] 12.3 `feat(ui): NavigationBar 三 tab + 设备扫描连接页`（Task 3 + 4）
