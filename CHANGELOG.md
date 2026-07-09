@@ -21,6 +21,7 @@
 - feat(firmware): `protocol.h` 新增 `CMD_SET_PARAMS` / `CMD_SET_WIFI` 宏 + `SetParamsPayload` 结构（`#pragma pack(1)` + `PROTO_STATIC_ASSERT` 校验 21 字节）；`ble_task.cpp` `ControlCharacteristicCallbacks::onWrite` 改为按 CMD 字节分发：`CMD_CONTROL` 走原控制逻辑、`CMD_SET_PARAMS` 调 `motor_set_*` + `params_store_save_*`、`CMD_SET_WIFI` 调 `wifi_config_set`、未知 CMD 丢弃。
 
 ### Changed
+- ci(app): 取消 HarmonyOS HAP 自动构建 -- `build-hap` job 改为 `if: github.event_name == 'workflow_dispatch'`，仅手动触发，不再进入 push/PR/tag 自动流水线；`release` job 的 `needs` 仍列 `build-hap`（手动未触发时视为 skipped=success，不阻塞 release），`files` 保留 `artifacts/app-hap/*` glob 以备手动构建产物。
 - ci(firmware): 切换 PlatformIO 平台为 pioarduino 社区发行包（`platform-espressif32` stable），从而获得 Arduino-ESP32 core 3.x，与 `motor_task.cpp` 已迁移的 v3.x LEDC API 对齐；官方 platform 仍绑定 core 2.0.17。
 - ci(app): 为 Flutter Action 启用 `cache: true`，并新增 cargo 缓存（`~/.cargo/registry`、`~/.cargo/git`、`app/rust/target`），减少 CI 重复编译耗时。
 - ci: build-matrix 与 cargo-doc job 显式声明 `permissions: contents: read`，release job 按需授予 `contents: write`，实现最小权限原则。
@@ -31,6 +32,7 @@
 - feat(firmware): PID / 物理参数从 `config.h` 编译期宏改为运行时 `static volatile` 变量 + NVS 加载，首次启动行为与原版一致（无 NVS 时回退宏默认），运行时可通过 BLE `CMD_SET_PARAMS` 修改并持久化。
 
 ### Fixed
+- fix(app): 消除 `prefer_const_constructors` lint 警告 -- `ble_controller.dart` 的 `BleState(...)`、`tilt_controller.dart` 的 `ControlCommand(...)`、`main.dart` `_DriveTab` 的 `Scaffold/SafeArea/Column` 嵌套构造、`settings_screen.dart` 的 `ListTile(...)` 均改为 `const` 构造，提升性能。`frb_generated.dart` 两处同类警告属生成代码（gitignored），不手改。
 - fix(app): 底部 NavigationBar 点击不显示页面的真正根因修复 —— Rust 侧新增 `encode_set_params` / `encode_set_wifi` 后未跑 `flutter_rust_bridge_codegen generate`，`lib/src/rust/control.dart` 缺失对应 Dart 符号，`ble_controller.dart:543,586` 引用 `control_rust.encodeSetParams` / `control_rust.encodeSetWifi` 触发 `undefined_function`，整个 Dart 编译失败导致 hot reload 静默不生效，用户看到的表象就是"点了 tab 没换页"。本次在 `app/` 下重新执行 codegen，Dart 绑定补齐即恢复。同时清理 `app/lib/ui/joystick.dart` 未使用的 `theme.dart` 导入。
 - fix(app): 底部 NavigationBar 点击不切换页面修复 —— 将 `ref.listenManual` 错误监听注册延迟到 `addPostFrameCallback`（第一帧渲染完成后），确保 `ScaffoldMessenger` 已挂载、`context` 完全可用；保存 `ProviderSubscription` 并在 `dispose` 中正确 `close()`，listener 内加 `mounted` 检查；`onDestinationSelected` 加重复点击判断跳过不必要的 `setState`。修复根因：initState 阶段注册 listener 可能因 context 未完全挂载或 provider 初始化触发 listener 回调导致异常，中断 widget tree 正常构建。
 - fix(ci/app): 修复 `build-hap` job 因 `gitcode.com/CPF-Flutter/flutter_flutter` SDK fork 的 `version` 文件为 `0.0.0-unknown` 导致 `flutter create --platforms=ohos` 内部 `flutter pub get` 失败的 bug：clone 后写入真实版本号 `3.27.4` 并同步修正 `bin/cache/flutter.version.json`；将 OpenHarmony SDK 下载与 hvigor/ohpm 安装步骤提前到 `flutter create` 之前；调优 HAP artifact 上传路径。
