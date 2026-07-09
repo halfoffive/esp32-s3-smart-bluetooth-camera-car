@@ -8,6 +8,8 @@
 ## [Unreleased]
 
 ### Added
+- ci(app): `app.yml` 新增实验性 `build-hap` job —— 使用 `gitcode.com/CPF-Flutter/flutter_flutter` SDK fork 构建 HarmonyOS unsigned HAP 包：JDK 17 + OpenHarmony SDK + hvigor/ohpm（npm `@ohos:registry`）+ `flutter create --platforms=ohos` + `flutter build hap --release`；用 `continue-on-error: true` 标注，失败不阻塞 release；release job 的 `needs` 加 `build-hap`，`files` 列表加 `artifacts/app-hap/*`。
+- feat(app): `BleController` 在构造与关键状态转移处（startScan / connect / _onConnectionStateChange / _onConnected / _onDisconnected / stream onError）补 `debugPrint` 诊断日志，便于 `flutter run` 定位驾驶 tab 空白根因；release 构建由 Flutter 框架自动剥离，无副作用。
 - feat(app): 主题模式设置 —— 设置页新增「外观」段，`SegmentedButton` 切换 系统/浅色/深色，选择持久化到 `shared_preferences`（键 `car_theme_mode`），默认跟随系统（`ThemeMode.system`）。新增 `theme_mode_controller.dart`（Riverpod `StateNotifier<ThemeMode>`）。
 - ci(app): `app.yml` 新增 `cargo clippy --all-features -- -D warnings` 门槛（`cargo-doc` 与 `build-matrix` job 均在 codegen 之后、build/doc 之前执行），clippy 警告即构建失败。
 - feat(app): `HomeScreen` 改 `Scaffold` + `NavigationBar` 三 tab（驾驶 / 设备 / 设置）+ `IndexedStack` 保活子页状态；新增 `app/lib/ui/devices_screen.dart`，按 `BleState.status` 分支提供扫描 / 列表点选连接 / 断开按钮。
@@ -29,6 +31,7 @@
 - feat(firmware): PID / 物理参数从 `config.h` 编译期宏改为运行时 `static volatile` 变量 + NVS 加载，首次启动行为与原版一致（无 NVS 时回退宏默认），运行时可通过 BLE `CMD_SET_PARAMS` 修改并持久化。
 
 ### Fixed
+- fix(app): 驾驶 tab 空白复现的防御性修复 —— `_HomeScreenState` 的 `ref.listen(bleControllerProvider, ...)` 从 `build` 顶部移到 `initState`，改用 Riverpod 2 推荐的 `ref.listenManual` 注册 errorMessage 监听，避免在 widget build 期间注册 listener 的潜在副作用（build 可能被框架多次调用）。配合上轮的 `_DriveTab` 包 `Scaffold`+`SafeArea` + `IndexedStack` 加 `sizing: StackFit.expand` 修复。若 bug 仍在，需用户提供 `flutter run` 控制台日志（含本轮新增 `BleController` 诊断日志）深入排查。
 - fix(ci): 将 `.github/workflows/app.yml` 与 `firmware.yml` 中的 `actions/checkout`、`actions/cache`、`actions/upload-artifact`、`actions/download-artifact`、`actions/setup-python` 升级到 Node 24 原生大版本（`@v7`/`@v6`/`@v7`/`@v8`/`@v6`），消除 `Node.js 20 is deprecated` 警告。
 - fix(app): 设备页缺失扫描/连接按钮 —— 原 UI 仅在 AppBar 跳设置，无法扫描 BLE 设备；新增 `devices_screen.dart` 提供「设备」tab 扫描/连接/断开入口，状态分支由 `BleState.status` 驱动。
 - fix(firmware): 修正 `firmware/platformio.ini` 中 `espressif/esp32-camera` 依赖为 GitHub 源 `https://github.com/espressif/esp32-camera.git#v2.1.7`，修复 PlatformIO Library Registry 中 `^2.4.0`/`^2.1.7` 均不存在导致的 `UnknownPackageError`。

@@ -94,6 +94,13 @@ cargo doc --no-deps --open            # 本地浏览
 - 固件 PID/物理参数从 `config.h` 编译期宏改为运行时 `static volatile` 变量 + setter（`motor_set_pid` / `motor_set_ramp` / `motor_set_physical` / `speed_sensor_set_physical`），NVS 持久化用 Arduino-ESP32 内置 `Preferences.h`（`params_store.{h,cpp}` / `wifi_config.{h,cpp}`）。首次启动无 NVS 时回退 `config.h` 宏默认，行为与原版一致；`motor_init` / `speed_sensor_init` 在初始化时从 NVS 加载。
 - 修改 Rust 侧暴露给 Dart 的接口（如新增 `encode_set_params` / `encode_set_wifi`）后必须重跑 `flutter_rust_bridge_codegen generate`；CI 由 `app.yml` 的「Generate flutter_rust_bridge bindings」步骤自动生成。本地若无 `flutter` 命令，仅改源代码后由 CI 兜底（不要手改 `frb_generated.dart` / `frb_generated.rs`）。
 - `SetParamsPayload` 在 Rust 与固件两端均须 `#pragma pack(1)` / 21 字节小端对齐，二进制布局必须严格一致（字段顺序：`kp f32` + `ki f32` + `kd f32` + `ramp_ms u32` + `wheel_dia_mm u16` + `wheel_base_mm u16` + `enc_slots u8` = 4+4+4+4+2+2+1 = 21 字节）。固件端用 `PROTO_STATIC_ASSERT(sizeof(struct SetParamsPayload) == 21, ...)` 校验；Rust 端 `#[repr(C, packed)]` 派生 + 编码后 `assert_eq!(bytes.len(), 21)` 单测。
+- HarmonyOS HAP 构建使用 `gitcode.com/CPF-Flutter/flutter_flutter` SDK fork（OpenHarmony 适配版，提供 `flutter build hap` 命令），**不可**用标准 `subosito/flutter-action`（后者不包含 ohos 平台目录模板与 `flutter build hap` 子命令）。CI 中用 `git clone --depth 1 <url> "$HOME/flutter_ohos"` + `echo "$HOME/flutter_ohos/bin" >> $GITHUB_PATH`。
+- OpenHarmony 工具链要求 JDK 17（hvigor 强制，低于 17 直接失败）+ glibc 2.28+（ubuntu-22.04+ 满足）。
+- OpenHarmony SDK / hvigor / ohpm 安装：SDK 从 `https://repo.harmonyos.com/os/ohos-sdk/` 公开下载（版本号随 HarmonyOS Release 变化）；hvigor/ohpm 走 npm 全局，须先 `npm config set @ohos:registry https://repo.harmonyos.com/npm/` 再 `npm install -g @ohos/hvigor @ohos/ohpm`。
+- `aarch64-unknown-linux-ohos` Rust target **不在 rustup 官方 target 列表**（截至 2025），CI 中先用 `rustup target add aarch64-unknown-linux-ohos 2>/dev/null || rustup target add aarch64-linux-android` fallback；待 rustup 官方支持后移除 fallback。TODO 待社区支持。
+- `build-hap` job 用 `continue-on-error: true` 标注为实验性 job：OpenHarmony 工具链不确定性高（SDK URL / hvigor 包名 / ohos 平台目录生成），允许失败但记录日志；release job 的 `needs` 列 `build-hap`，因 continue-on-error 失败在 needs 中仍视为 success，release 不会被阻塞。
+- unsigned HAP 可直接产出用于内部测试；签名 HAP 需华为开发者证书（.p12 + .p7b profile），属敏感文件，留后续 spec 扩展，CI 不签。
+- Riverpod 2 中 `ref.listen(provider, callback)` 写在 `ConsumerStatefulWidget.build` 顶部虽合法（Riverpod 自动去重重复注册），但推荐改用 `initState` + `ref.listenManual(provider, callback)` 注册副作用型 listener（如弹 SnackBar），避免在 widget build 期间注册 listener 的潜在副作用（build 可能被框架多次调用）。
 
 ## BLE 关键约定
 
