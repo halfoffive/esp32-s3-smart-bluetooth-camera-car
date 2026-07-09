@@ -21,16 +21,23 @@
 - **ADDED** Rust 交叉编译目标：`aarch64-unknown-linux-ohos`（OpenHarmony arm64 目标，需 rustup 添加；若 rustup 未收录则用 `aarch64-linux-android` 近似目标作为 fallback，标注 TODO）
 - **MODIFIED** release job 的 artifact 列表增加 `app-hap`
 
+### Part D: 修复 build-hap job（鸿蒙构建 bug，追加）
+- **MODIFIED** `.github/workflows/app.yml` 的 `build-hap` job：
+  - 在 Clone `flutter_flutter` 后新增版本补丁步骤：将 fork 默认分支的 `version` 文件从 `0.0.0-unknown` 改写成真实版本号（`3.27.4`），并同步修正 `bin/cache/flutter.version.json`
+  - 将 OpenHarmony SDK 下载与环境变量配置步骤提前到 `flutter create --platforms=ohos` 之前
+  - 调优 HAP artifact 上传路径，优先常见 hvigor 产物目录
+
 ## Impact
 
 - **Affected specs**: `refactor-m3-native-ui-and-device-config`（驾驶 tab 渲染）、`smart-bt-camera-car`（CI 流水线）
 - **Affected code**:
   - `app/lib/main.dart`（`_HomeScreenState`：ref.listen 移到 initState）
   - `app/lib/ble/ble_controller.dart`（debugPrint 诊断日志，release 无副作用）
-  - `.github/workflows/app.yml`（新增 build-hap job + release artifact 列表）
+  - `.github/workflows/app.yml`（新增 build-hap job + release artifact 列表 + Part D 修复版本号与步骤顺序）
 - **新增外部依赖**：OpenHarmony SDK ~1GB 下载、hvigor/ohpm npm 包、JDK 17、flutter_flutter SDK fork
 - **CI 影响**：build-hap job 预计 15-25 分钟（SDK 下载 + 工具链安装 + 构建），与现有 build-matrix 并行
 - **Rust 侧**：若 OpenHarmony Rust target 不在 rustup 官方收录，可能需用 nightly 或自定义 target JSON；本 spec 先用 fallback target，标注 TODO 待社区支持
+- **Part D 追加影响**：仅修改 `.github/workflows/app.yml` 中 `build-hap` job 的步骤顺序与版本补丁，不影响其他 job
 
 ## Assumptions & Decisions
 
@@ -41,6 +48,7 @@
 5. **OpenHarmony Rust target 不确定性**：rustup 官方可能未收录 `aarch64-unknown-linux-ohos`，先尝试，失败则 fallback 到 `aarch64-linux-android`（Android NDK 目标，与 ohos arm64 ABI 相近），标注 TODO 待 rustup 官方支持。
 6. **flutter_flutter SDK 版本**：gitcode 仓库未标明版本，CI 中 clone 默认分支（main/master），若不稳定再锁定 commit。
 7. **遵守 AGENTS.md**：M3 原生组件、中文注释、Conventional Commits、CI actions/* Node 24、clippy 零警告门槛、文档同步（CHANGELOG/README/AGENTS）。
+8. **Part D 根因假设**：build-hap job 失败根因为 `gitcode.com/CPF-Flutter/flutter_flutter` fork 的 `version` 文件写死 `0.0.0-unknown`，导致 `flutter create --platforms=ohos` 内部 `flutter pub get` 因版本约束失败。修复方案：clone 后写入真实版本号（`3.27.4`）并同步修正 `bin/cache/flutter.version.json`。
 
 ## ADDED Requirements
 
@@ -77,6 +85,22 @@
 - **GIVEN** 用户在任意 tab（驾驶/设备/设置）
 - **WHEN** `BleController.errorMessage` 变化
 - **THEN** root ScaffoldMessenger 弹 SnackBar 显示错误（行为与上一轮修复一致，仅注册时机变更）
+
+## MODIFIED Requirements（追加修复）
+
+### Requirement: CI `build-hap` job 成功运行
+系统 SHALL 修复 `.github/workflows/app.yml` 中 `build-hap` job 的构建失败，使其至少能通过 `flutter create --platforms=ohos` 步骤并继续执行到 `flutter build hap --release`。
+
+#### Scenario: 修复 Flutter SDK 版本号
+- **GIVEN** CI 使用 `gitcode.com/CPF-Flutter/flutter_flutter` SDK fork
+- **WHEN** fork 的 `version` 文件值为 `0.0.0-unknown`
+- **THEN** CI 在 clone 后写入对应真实版本号（如 `3.27.4`）并同步修正 `bin/cache/flutter.version.json`
+- **AND** `flutter create --platforms=ohos` 内部 `flutter pub get` 不再因版本约束失败
+
+#### Scenario: OpenHarmony SDK 在 `flutter create` 前就绪
+- **GIVEN** `flutter create --platforms=ohos` 需要定位 OpenHarmony SDK
+- **WHEN** CI 进入 Bootstrap ohos platform 步骤
+- **THEN** `OHOS_SDK_HOME` / `HOS_SDK_HOME` / `PATH` 已配置且 SDK 已下载解压
 
 ## REMOVED Requirements
 

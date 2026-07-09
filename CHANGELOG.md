@@ -32,6 +32,7 @@
 
 ### Fixed
 - fix(app): 底部 NavigationBar 点击不切换页面修复 —— 将 `ref.listenManual` 错误监听注册延迟到 `addPostFrameCallback`（第一帧渲染完成后），确保 `ScaffoldMessenger` 已挂载、`context` 完全可用；保存 `ProviderSubscription` 并在 `dispose` 中正确 `close()`，listener 内加 `mounted` 检查；`onDestinationSelected` 加重复点击判断跳过不必要的 `setState`。修复根因：initState 阶段注册 listener 可能因 context 未完全挂载或 provider 初始化触发 listener 回调导致异常，中断 widget tree 正常构建。
+- fix(ci/app): 修复 `build-hap` job 因 `gitcode.com/CPF-Flutter/flutter_flutter` SDK fork 的 `version` 文件为 `0.0.0-unknown` 导致 `flutter create --platforms=ohos` 内部 `flutter pub get` 失败的 bug：clone 后写入真实版本号 `3.27.4` 并同步修正 `bin/cache/flutter.version.json`；将 OpenHarmony SDK 下载与 hvigor/ohpm 安装步骤提前到 `flutter create` 之前；调优 HAP artifact 上传路径。
 - fix(app): 驾驶 tab 空白复现的防御性修复 —— `_HomeScreenState` 的 `ref.listen(bleControllerProvider, ...)` 从 `build` 顶部移到 `initState`，改用 Riverpod 2 推荐的 `ref.listenManual` 注册 errorMessage 监听，避免在 widget build 期间注册 listener 的潜在副作用（build 可能被框架多次调用）。配合上轮的 `_DriveTab` 包 `Scaffold`+`SafeArea` + `IndexedStack` 加 `sizing: StackFit.expand` 修复。若 bug 仍在，需用户提供 `flutter run` 控制台日志（含本轮新增 `BleController` 诊断日志）深入排查。
 - fix(ci): 将 `.github/workflows/app.yml` 与 `firmware.yml` 中的 `actions/checkout`、`actions/cache`、`actions/upload-artifact`、`actions/download-artifact`、`actions/setup-python` 升级到 Node 24 原生大版本（`@v7`/`@v6`/`@v7`/`@v8`/`@v6`），消除 `Node.js 20 is deprecated` 警告。
 - fix(app): 设备页缺失扫描/连接按钮 —— 原 UI 仅在 AppBar 跳设置，无法扫描 BLE 设备；新增 `devices_screen.dart` 提供「设备」tab 扫描/连接/断开入口，状态分支由 `BleState.status` 驱动。

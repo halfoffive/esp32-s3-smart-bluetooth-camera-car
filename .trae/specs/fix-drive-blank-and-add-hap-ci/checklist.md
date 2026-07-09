@@ -40,13 +40,21 @@
 - [x] AGENTS.md 工具链陷阱新增 Riverpod ref.listenManual 推荐用法
 - [x] README.md 若涉及构建命令/平台支持，已同步 HAP 构建说明（仅在有用户可见变化时）
 
+## Part D: 修复 build-hap job（鸿蒙构建 bug）
+
+- [x] 已定位 build-hap 失败根因：`gitcode.com/CPF-Flutter/flutter_flutter` fork 的 `version` 文件为 `0.0.0-unknown`，`flutter create --platforms=ohos` 内部 `flutter pub get` 因版本约束失败
+- [x] `.github/workflows/app.yml` 的 `build-hap` job 已在 Clone flutter_flutter 后新增版本补丁步骤，写入真实版本号（如 `3.27.4`）并同步修正 `bin/cache/flutter.version.json`
+- [x] `.github/workflows/app.yml` 的 `build-hap` job 已将 OpenHarmony SDK 下载与环境变量配置步骤提前到 `flutter create --platforms=ohos` 之前
+- [x] HAP artifact 上传路径已调优，优先常见 hvigor 产物目录
+- [x] YAML 语法校验通过
+
 ## CI 验证
 
-- [x] push 触发 App Build workflow，`cargo-doc` job ✅ success（clippy 零警告门槛通过）
-- [x] `build-matrix` job 4 平台（apk/linux/windows/macos）✅ success（Part A 改动编译通过）
-- [x] `build-hap` job 运行（允许失败但记录日志，用于调试 OpenHarmony 工具链问题）—— failure 但 continue-on-error 生效，run 整体 success
-- [ ] 若 `build-hap` 成功，`app-hap` artifact 已上传（本轮失败，artifact 未上传，待工具链问题修复后验证）
-- [ ] release job（若 tag 推送）包含 HAP 产物（本次未推 tag，release skipped，符合预期）
+- [ ] push 触发 App Build workflow，`cargo-doc` job ✅ success（clippy 零警告门槛通过）
+- [ ] `build-matrix` job 4 平台（apk/linux/windows/macos）✅ success（Part A 改动编译通过）
+- [ ] `build-hap` job 至少通过 `Bootstrap ohos platform` 步骤，不再因 `0.0.0-unknown` 版本约束失败
+- [ ] 若 `build-hap` 成功，`app-hap` artifact 已上传
+- [ ] release job（若 tag 推送）包含 HAP 产物
 
 ## 用户实测验证（CI 通过后请用户确认）
 
