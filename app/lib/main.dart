@@ -67,6 +67,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     // 保留 BLE 连接与摄像头流。
     return Scaffold(
       body: IndexedStack(
+        sizing: StackFit.expand,
         index: _currentIndex,
         children: const [
           _DriveTab(),
@@ -96,18 +97,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 }
 
-/// 驾驶 tab：摄像头视口 + 遥测面板 + 操控面板（沿用原 HomeScreen body 布局）。
+/// 驾驶 tab：摄像头视口 + 遥测面板 + 操控面板。
+///
+/// 包 Scaffold 与其他 tab 结构对称（DevicesScreen/SettingsScreen 均有 Scaffold），
+/// 消除裸 Column 在 IndexedStack loose 约束下的 sizing 风险；
+/// 无 AppBar 保留全屏沉浸感，SafeArea 处理状态栏/刘海。
 class _DriveTab extends StatelessWidget {
   const _DriveTab();
 
   @override
   Widget build(BuildContext context) {
-    return const Column(
-      children: [
-        Expanded(flex: 3, child: CameraViewport()),
-        TelemetryPanel(),
-        Expanded(flex: 2, child: ControlPanel()),
-      ],
+    return Scaffold(
+      body: SafeArea(
+        child: Column(
+          children: const [
+            Expanded(flex: 3, child: CameraViewport()),
+            TelemetryPanel(),
+            Expanded(flex: 2, child: ControlPanel()),
+          ],
+        ),
+      ),
     );
   }
 }
