@@ -10,15 +10,27 @@
 ### Added
 - feat(app): 主题模式设置 —— 设置页新增「外观」段，`SegmentedButton` 切换 系统/浅色/深色，选择持久化到 `shared_preferences`（键 `car_theme_mode`），默认跟随系统（`ThemeMode.system`）。新增 `theme_mode_controller.dart`（Riverpod `StateNotifier<ThemeMode>`）。
 - ci(app): `app.yml` 新增 `cargo clippy --all-features -- -D warnings` 门槛（`cargo-doc` 与 `build-matrix` job 均在 codegen 之后、build/doc 之前执行），clippy 警告即构建失败。
+- feat(app): `HomeScreen` 改 `Scaffold` + `NavigationBar` 三 tab（驾驶 / 设备 / 设置）+ `IndexedStack` 保活子页状态；新增 `app/lib/ui/devices_screen.dart`，按 `BleState.status` 分支提供扫描 / 列表点选连接 / 断开按钮。
+- feat(app): 设置页新增「WiFi 配置」段（SSID + 密码 `TextFormField` + 「下发到设备」`FilledButton`），BLE 已连接时调 `BleController.sendWifiConfig` 下发 `CMD_SET_WIFI=0x05`，SnackBar 提示「WiFi 配置已下发到设备」；未连接时按钮禁用并提示「请先连接设备」。
+- feat(app): PID / 物理参数「保存」按钮支持设备下发 —— BLE 已连接时调 `BleController.sendParams` 下发 `CMD_SET_PARAMS=0x04`（21 字节 `SetParamsPayload`），SnackBar 提示「已保存到设备」；未连接时禁用并提示「请先连接设备」。移除原顶部「仅本地保存」说明卡片。
+- feat(app/rust): `ble.rs` 新增 `CMD_SET_PARAMS=0x04` / `CMD_SET_WIFI=0x05` 常量 + `SetParamsPayload` 结构；`control.rs` 新增 `encode_set_params` / `encode_set_wifi` 编码函数 + 单测（断言 `SetParamsPayload` 编码后长度为 21 字节）。
+- feat(firmware): 新增 `wifi_config.{h,cpp}`（NVS 存取 SSID/密码）与 `params_store.{h,cpp}`（NVS 存取 PID/物理参数）；`config.h` 新增 NVS 命名空间常量段（`WIFI_NVS_NAMESPACE` / `PARAMS_NVS_NAMESPACE` 等）。
+- feat(firmware): `motor_task` / `speed_sensor` PID 与物理参数改为 `static volatile` 运行时变量 + setter（`motor_set_pid` / `motor_set_ramp` / `motor_set_physical` / `speed_sensor_set_physical`）；`motor_init` / `speed_sensor_init` 在初始化时从 NVS 加载，无 NVS 时回退 `config.h` 宏默认。
+- feat(firmware): `protocol.h` 新增 `CMD_SET_PARAMS` / `CMD_SET_WIFI` 宏 + `SetParamsPayload` 结构（`#pragma pack(1)` + `PROTO_STATIC_ASSERT` 校验 21 字节）；`ble_task.cpp` `ControlCharacteristicCallbacks::onWrite` 改为按 CMD 字节分发：`CMD_CONTROL` 走原控制逻辑、`CMD_SET_PARAMS` 调 `motor_set_*` + `params_store_save_*`、`CMD_SET_WIFI` 调 `wifi_config_set`、未知 CMD 丢弃。
 
 ### Changed
 - ci(firmware): 切换 PlatformIO 平台为 pioarduino 社区发行包（`platform-espressif32` stable），从而获得 Arduino-ESP32 core 3.x，与 `motor_task.cpp` 已迁移的 v3.x LEDC API 对齐；官方 platform 仍绑定 core 2.0.17。
 - ci(app): 为 Flutter Action 启用 `cache: true`，并新增 cargo 缓存（`~/.cargo/registry`、`~/.cargo/git`、`app/rust/target`），减少 CI 重复编译耗时。
 - ci: build-matrix 与 cargo-doc job 显式声明 `permissions: contents: read`，release job 按需授予 `contents: write`，实现最小权限原则。
 - feat(app): Material 3 **默认配色**替代自定义橙黑 HUD 配色 —— 移除 `AppColors` 类与 `colorSchemeSeed`，结构色（背景/表面/主色/文字）一律取自 `Theme.of(context).colorScheme`；状态语义色由新 `HudStatus` 承载（`Colors.green`/`Colors.amber`/`colorScheme.error`）。`AppTheme` 新增 `light()`/`dark()` 双主题，`main.dart` 接入 `theme`/`darkTheme`/`themeMode`。`joystick`/`camera_viewport`/`telemetry_panel`/`control_panel`/`settings_screen` 同步迁移。
+- feat(app): 字体改为 M3 默认 —— 移除 `'Roboto Mono'` / `'Inter'` 自定义字体引用，等宽数值走系统 `'monospace'` fallback（`AppTheme.mono()`），数值标签改用 M3 `textTheme.labelSmall` / `titleMedium` 等角色；`pubspec.yaml` 不引入第三方字体包（无 `fonts:` 段、不引入 `google_fonts`）。
+- feat(app): `settings_screen.dart` `_numField` 改为 M3 默认 outline —— 删除 `filled: true` / `fillColor` / 自定义 `border`，沿用 M3 `TextFormField` 默认 outline 外观。
+- feat(app): `HomeScreen` 重构为 `Scaffold` + `NavigationBar` + `IndexedStack`，移除 `/settings` 命名路由与 AppBar 设置 IconButton；导航由底部 tab 完成，设置入口统一收口到「设置」tab。
+- feat(firmware): PID / 物理参数从 `config.h` 编译期宏改为运行时 `static volatile` 变量 + NVS 加载，首次启动行为与原版一致（无 NVS 时回退宏默认），运行时可通过 BLE `CMD_SET_PARAMS` 修改并持久化。
 
 ### Fixed
 - fix(ci): 将 `.github/workflows/app.yml` 与 `firmware.yml` 中的 `actions/checkout`、`actions/cache`、`actions/upload-artifact`、`actions/download-artifact`、`actions/setup-python` 升级到 Node 24 原生大版本（`@v7`/`@v6`/`@v7`/`@v8`/`@v6`），消除 `Node.js 20 is deprecated` 警告。
+- fix(app): 设备页缺失扫描/连接按钮 —— 原 UI 仅在 AppBar 跳设置，无法扫描 BLE 设备；新增 `devices_screen.dart` 提供「设备」tab 扫描/连接/断开入口，状态分支由 `BleState.status` 驱动。
 - fix(firmware): 修正 `firmware/platformio.ini` 中 `espressif/esp32-camera` 依赖为 GitHub 源 `https://github.com/espressif/esp32-camera.git#v2.1.7`，修复 PlatformIO Library Registry 中 `^2.4.0`/`^2.1.7` 均不存在导致的 `UnknownPackageError`。
 - fix(firmware): 移除 `ble_task.cpp` 中 NimBLE 栈不存在的 `BLECharacteristic::getSubscribedCount()` 调用，改为直接调用 `send_image_frame()`（NimBLE 的 `notify()` 在无订阅时自动跳过），修复启用 `-DUSE_NIMBLE` 后的编译失败。
 - fix(ci/app): 修正 Android compileSdk patch 的 Kotlin DSL 注入块，将 `CommonExtension` 替换为反射调用 `setCompileSdk`/`setCompileSdkVersion(Int)`，修复 Gradle `Unresolved reference 'compileSdk'` 构建失败。

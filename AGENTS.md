@@ -90,6 +90,10 @@ cargo doc --no-deps --open            # 本地浏览
 - `KeyEventResult` 定义在 `package:flutter/src/widgets/focus_manager.dart`，由 `package:flutter/widgets.dart` 再导出（**不在** `services.dart`）。`keyboard_controller.dart` 用 `show` 子句限定 `widgets.dart` 导入时，必须显式列出 `KeyEventResult`（`import 'package:flutter/widgets.dart' show FocusNode, KeyEventResult;`），否则 Linux/桌面构建报 `Type 'KeyEventResult' not found`。`KeyEvent`/`KeyDownEvent`/`KeyUpEvent`/`LogicalKeyboardKey` 才来自 `services.dart`。
 - GitHub Actions 的 `actions/*` 系列须使用 Node 24 原生版本，避免 `Node.js 20 is deprecated` 警告：当前应使用 `actions/checkout@v7`、`actions/cache@v6`、`actions/upload-artifact@v7`、`actions/download-artifact@v8`、`actions/setup-python@v6`。`@v5` 仍基于 Node 20 运行时，会被 runner 强制迁移到 Node 24 并产生弃用警告；`subosito/flutter-action@v2` 已兼容 Node 24，无需升级。
 - frb v2 属性宏（`#[frb(sync)]` / `#[frb(opaque)]` 等）内部会展开 `#[cfg(frb_expand)]`，rustc 1.80+ 的 check-cfg 机制会将其判为 `unexpected_cfgs`，在 `-D warnings` 下导致 `cargo clippy` 失败。须在 `app/rust/Cargo.toml` 的 `[lints.rust]` 段声明该 cfg 为已知：`unexpected_cfgs = { level = "deny", check-cfg = ['cfg(frb_expand)'] }`（deny 保留对其它未知 cfg 的拒绝，仅放行 `frb_expand`）。不得用散布的 `#[allow(unexpected_cfgs)]` 替代。
+- BLE 协议新增 `CMD_SET_PARAMS=0x04` / `CMD_SET_WIFI=0x05` 复用控制 WRITE 特征（`...def2`），不新增 GATT 特征；`ble_task.cpp` `ControlCharacteristicCallbacks::onWrite` 中 `proto_validate` 通过后按 `buf[4]`（CMD 字节）分发，未知 CMD 直接丢弃。
+- 固件 PID/物理参数从 `config.h` 编译期宏改为运行时 `static volatile` 变量 + setter（`motor_set_pid` / `motor_set_ramp` / `motor_set_physical` / `speed_sensor_set_physical`），NVS 持久化用 Arduino-ESP32 内置 `Preferences.h`（`params_store.{h,cpp}` / `wifi_config.{h,cpp}`）。首次启动无 NVS 时回退 `config.h` 宏默认，行为与原版一致；`motor_init` / `speed_sensor_init` 在初始化时从 NVS 加载。
+- 修改 Rust 侧暴露给 Dart 的接口（如新增 `encode_set_params` / `encode_set_wifi`）后必须重跑 `flutter_rust_bridge_codegen generate`；CI 由 `app.yml` 的「Generate flutter_rust_bridge bindings」步骤自动生成。本地若无 `flutter` 命令，仅改源代码后由 CI 兜底（不要手改 `frb_generated.dart` / `frb_generated.rs`）。
+- `SetParamsPayload` 在 Rust 与固件两端均须 `#pragma pack(1)` / 21 字节小端对齐，二进制布局必须严格一致（字段顺序：`kp f32` + `ki f32` + `kd f32` + `ramp_ms u32` + `wheel_dia_mm u16` + `wheel_base_mm u16` + `enc_slots u8` = 4+4+4+4+2+2+1 = 21 字节）。固件端用 `PROTO_STATIC_ASSERT(sizeof(struct SetParamsPayload) == 21, ...)` 校验；Rust 端 `#[repr(C, packed)]` 派生 + 编码后 `assert_eq!(bytes.len(), 21)` 单测。
 
 ## BLE 关键约定
 
@@ -98,11 +102,17 @@ cargo doc --no-deps --open            # 本地浏览
 - GATT 服务 UUID：`12345678-1234-5678-1234-56789abcdef0`
 - 三个特征末位分别为 `...def1`（图像 NOTIFY）、`...def2`（控制 WRITE）、`...def3`（遥测 NOTIFY）
 - MTU 协商目标 512 字节
+- `CMD_SET_PARAMS=0x04` 载荷 = `SetParamsPayload`（21 字节，小端，与固件 `#pragma pack(1)` 一致）：
+  `kp(f32, 4) | ki(f32, 4) | kd(f32, 4) | ramp_ms(u32, 4) | wheel_dia_mm(u16, 2) | wheel_base_mm(u16, 2) | enc_slots(u8, 1)`，App→固件，复用控制 WRITE 特征 `...def2`。
+- `CMD_SET_WIFI=0x05` 载荷 = 长度前缀字符串对（变长）：
+  `ssid_len(u8, 1) | ssid(ssid_len 字节) | pass_len(u8, 1) | pass(pass_len 字节)`，SSID ≤ 32 字节、密码 ≤ 64 字节；App→固件，复用控制 WRITE 特征 `...def2`；设备收到后写 NVS，当前固件不主动连 WiFi（预留扩展）。
 
 ## 用户强制风格
 
 - **Rust 侧**：函数式编程风格，纯函数优先，写适量中文注释。
 - **Flutter 侧**：Material Design 3 **默认配色**（`useMaterial3: true`，不设 `colorSchemeSeed` / 自定义种子色），结构色一律取自 `Theme.of(context).colorScheme`；**深浅色默认跟随系统**（`ThemeMode.system`），用户可在设置页切换 系统/浅色/深色（持久化到 `shared_preferences` 键 `car_theme_mode`）；状态语义色（正常/警告/危险）使用 Material 默认色（`Colors.green`/`Colors.amber`/`colorScheme.error`），由 `HudStatus` 承载，不随主题变化。Riverpod 状态管理。
+  - **M3 原生组件清单**（仅使用以下组件，不引入 `cupertino_icons` 之外的第三方 UI 包）：`FilledButton` / `FilledTonalButton` / `OutlinedButton` / `TextButton` 四档按钮、`NavigationBar` + `NavigationDestination` 底部导航、`SegmentedButton` 分段选择、M3 默认 `TextField`/`TextFormField` outline（**不自定义** `InputDecoration.border` / `fillColor` / `filled`，数值输入用 `_numField` 走默认 outline）。底部导航须配 `IndexedStack` 保活子页状态。
+  - **默认字体约定**：不引入第三方字体包（`pubspec.yaml` 无 `fonts:` 段，亦不引入 `google_fonts`）；等宽数值走系统 `'monospace'` fallback（`AppTheme.mono()` 设 `fontFamily: 'monospace'` + `fontFamilyFallback: ['monospace']`）；数值/标签文字使用 M3 `textTheme` 角色（`labelSmall` / `titleMedium` 等），不另设 `TextStyle` 颜色与字号硬编码。
 - **固件**：FreeRTOS 多任务，共享数据用 `volatile` + critical section 保护。
 - **提交**：遵循 Conventional Commits。
 - **AI 改动后**：必须同步更新 `AGENTS.md`、`README.md`、`CHANGELOG.md`。不要把文档留到下次。
