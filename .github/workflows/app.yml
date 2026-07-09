@@ -335,7 +335,45 @@ jobs:
           git clone --depth 1 https://gitcode.com/CPF-Flutter/flutter_flutter "$HOME/flutter_ohos"
           echo "$HOME/flutter_ohos/bin" >> "$GITHUB_PATH"
 
-      # 4. 配置 Rust stable 工具链 + cargo 缓存
+      # 4. 修复 fork 的 Flutter SDK 版本号占位
+      #    gitcode 默认分支的 version 文件写死为 0.0.0-unknown，会导致 flutter create
+      #    内部 flutter pub get 因版本约束（>=3.27.0）失败，需改写为真实版本号。
+      - name: Fix Flutter SDK version for fork
+        run: |
+          FLUTTER_VERSION="3.27.4"
+          echo "$FLUTTER_VERSION" > "$HOME/flutter_ohos/version"
+          if [ -f "$HOME/flutter_ohos/bin/cache/flutter.version.json" ]; then
+            sed -i "s/0\.0\.0-unknown/$FLUTTER_VERSION/g" "$HOME/flutter_ohos/bin/cache/flutter.version.json"
+          fi
+          echo "Flutter version patched to: $FLUTTER_VERSION"
+
+      # 5. 下载 OpenHarmony SDK（公开下载地址：repo.harmonyos.com）
+      #    API 版本选 14+，linux 64-bit 命令行工具包；提前到 flutter create 前，
+      #    因为 ohos 平台目录生成可能需要 SDK 定位。
+      - name: Download OpenHarmony SDK
+        run: |
+          mkdir -p "$HOME/ohos-sdk"
+          cd "$HOME/ohos-sdk"
+          # ohos-sdk 的具体下载 URL 可能随版本变化，此处先尝试官方公开路径
+          # 失败由 continue-on-error 兜底，记录日志供调试
+          SDK_URL="https://repo.harmonyos.com/os/ohos-sdk/5.0.0-Release/ohos-sdk-linux.tar.gz"
+          curl -fSL -o ohos-sdk.tar.gz "$SDK_URL" || true
+          if [ -f ohos-sdk.tar.gz ]; then
+            tar -xzf ohos-sdk.tar.gz
+            echo "OHOS_SDK_HOME=$HOME/ohos-sdk" >> "$GITHUB_ENV"
+            echo "HOS_SDK_HOME=$HOME/ohos-sdk" >> "$GITHUB_ENV"
+            echo "$HOME/ohos-sdk/toolchains" >> "$GITHUB_PATH"
+          fi
+
+      # 6. 安装 hvigor / ohpm（npm 全局，使用华为 OpenHarmony registry）
+      #    提前安装，避免 flutter build hap 时找不到 hvigor。
+      - name: Install hvigor and ohpm
+        run: |
+          npm config set @ohos:registry https://repo.harmonyos.com/npm/
+          # hvigor 与 ohpm 的精确包名以 OpenHarmony 文档为准；包名不一致时由 continue-on-error 兜底
+          npm install -g @ohos/hvigor @ohos/ohpm 2>&1 || true
+
+      # 7. 配置 Rust stable 工具链 + cargo 缓存
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
@@ -349,73 +387,52 @@ jobs:
           key: cargo-${{ runner.os }}-hap-${{ hashFiles('app/rust/Cargo.lock', 'app/rust/Cargo.toml') }}
           restore-keys: cargo-${{ runner.os }}-
 
-      # 5. 预装 cargo-expand + flutter_rust_bridge_codegen
+      # 8. 预装 cargo-expand + flutter_rust_bridge_codegen
       - name: Install cargo-expand
         run: cargo install cargo-expand --version 1.0.88 --locked
 
       - name: Install flutter_rust_bridge_codegen
         run: cargo install flutter_rust_bridge_codegen --version 2.12.0 --locked
 
-      # 6. 验证 flutter_flutter SDK 可用（打印版本，检测 ohos 支持）
+      # 9. 验证 flutter_flutter SDK 可用（打印版本，检测 ohos 支持）
       - name: Verify flutter_flutter SDK
         run: |
           flutter --version
           flutter doctor || true
 
-      # 7. 清理平台目录后生成 ohos 平台目录（flutter_flutter fork 支持 --platforms=ohos）
+      # 10. 清理平台目录后生成 ohos 平台目录（flutter_flutter fork 支持 --platforms=ohos）
       - name: Bootstrap ohos platform
         run: |
           rm -rf app/android app/ios app/linux app/macos app/windows app/ohos
           cd app && flutter create . --platforms=ohos --org com.smartcar --project-name smart_car_remote
 
-      # 8. 下载 OpenHarmony SDK（公开下载地址：gitee openharmony docs release-notes）
-      #    API 版本选 14+，linux 64-bit 命令行工具包
-      - name: Download OpenHarmony SDK
-        run: |
-          mkdir -p "$HOME/ohos-sdk"
-          cd "$HOME/ohos-sdk"
-          # ohos-sdk 的具体下载 URL 可能随版本变化，此处先尝试官方公开路径
-          # 失败由 continue-on-error 兜底，记录日志供调试
-          SDK_URL="https://repo.harmonyos.com/os/ohos-sdk/5.0.0-Release/ohos-sdk-linux.tar.gz"
-          curl -fSL -o ohos-sdk.tar.gz "$SDK_URL" || true
-          if [ -f ohos-sdk.tar.gz ]; then
-            tar -xzf ohos-sdk.tar.gz
-            echo "OHOS_SDK_HOME=$HOME/ohos-sdk" >> "$GITHUB_ENV"
-            echo "$HOME/ohos-sdk/toolchains" >> "$GITHUB_PATH"
-          fi
-
-      # 9. 安装 hvigor / ohpm（npm 全局，使用华为 OpenHarmony registry）
-      - name: Install hvigor and ohpm
-        run: |
-          npm config set @ohos:registry https://repo.harmonyos.com/npm/
-          # hvigor 与 ohpm 的精确包名以 OpenHarmony 文档为准；包名不一致时由 continue-on-error 兜底
-          npm install -g @ohos/hvigor @ohos/ohpm 2>&1 || true
-
-      # 10. 生成 frb bindings + 拉取依赖
+      # 11. 生成 frb bindings + 拉取依赖
       - name: Generate flutter_rust_bridge bindings
         run: cd app && flutter_rust_bridge_codegen generate
 
       - name: Flutter pub get
         run: cd app && flutter pub get
 
-      # 11. 添加 OpenHarmony Rust target（可能不在 rustup 官方收录，失败则 fallback android target）
+      # 12. 添加 OpenHarmony Rust target（可能不在 rustup 官方收录，失败则 fallback android target）
       - name: Add Rust target for ohos
         run: |
           # 优先尝试 OpenHarmony arm64 target；rustup 未收录则 fallback 到 android arm64
           rustup target add aarch64-unknown-linux-ohos 2>/dev/null || \
             rustup target add aarch64-linux-android
 
-      # 12. 构建 unsigned HAP（签名需华为开发者证书，留后续 spec 扩展）
+      # 13. 构建 unsigned HAP（签名需华为开发者证书，留后续 spec 扩展）
       - name: Build HarmonyOS HAP
         run: cd app && flutter build hap --release
 
-      # 13. 上传 HAP 产物（路径未确定时用 glob 兜底）
+      # 14. 上传 HAP 产物（优先常见 hvigor 产物路径，glob 兜底）
       - name: Upload HAP artifact
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: app-hap
           path: |
+            app/ohos/entry/build/default/outputs/default/*.hap
+            app/build/ohos/**/*.hap
             app/build/**/*.hap
             app/ohos/**/*.hap
             **/*.hap
