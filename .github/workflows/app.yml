@@ -312,7 +312,9 @@ jobs:
   # Job 3: HarmonyOS HAP 构建（实验性，使用 flutter_flutter SDK fork）
   # 工具链不确定性高（OpenHarmony SDK URL / hvigor 包名 / ohos 平台目录），
   # 用 continue-on-error: true 标注，失败不阻塞 release（needs 中仍视为 success）。
+  # 仅手动触发（workflow_dispatch），不进入 push/PR 自动构建流水线。
   build-hap:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
       contents: read

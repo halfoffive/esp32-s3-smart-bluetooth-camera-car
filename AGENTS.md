@@ -99,7 +99,7 @@ cargo doc --no-deps --open            # 本地浏览
 - OpenHarmony 工具链要求 JDK 17（hvigor 强制，低于 17 直接失败）+ glibc 2.28+（ubuntu-22.04+ 满足）。
 - OpenHarmony SDK / hvigor / ohpm 安装：SDK 从 `https://repo.harmonyos.com/os/ohos-sdk/` 公开下载（版本号随 HarmonyOS Release 变化）；hvigor/ohpm 走 npm 全局，须先 `npm config set @ohos:registry https://repo.harmonyos.com/npm/` 再 `npm install -g @ohos/hvigor @ohos/ohpm`。
 - `aarch64-unknown-linux-ohos` Rust target **不在 rustup 官方 target 列表**（截至 2025），CI 中先用 `rustup target add aarch64-unknown-linux-ohos 2>/dev/null || rustup target add aarch64-linux-android` fallback；待 rustup 官方支持后移除 fallback。TODO 待社区支持。
-- `build-hap` job 用 `continue-on-error: true` 标注为实验性 job：OpenHarmony 工具链不确定性高（SDK URL / hvigor 包名 / ohos 平台目录生成），允许失败但记录日志；release job 的 `needs` 列 `build-hap`，因 continue-on-error 失败在 needs 中仍视为 success，release 不会被阻塞。
+- `build-hap` job 用 `continue-on-error: true` 标注为实验性 job：OpenHarmony 工具链不确定性高（SDK URL / hvigor 包名 / ohos 平台目录生成），允许失败但记录日志；release job 的 `needs` 列 `build-hap`，因 continue-on-error 失败在 needs 中仍视为 success，release 不会被阻塞。**自 2026-07 起 `build-hap` 改为 `if: github.event_name == 'workflow_dispatch'` 仅手动触发**，不进入 push/PR/tag 自动流水线（鸿蒙工具链下载/安装耗时且不稳定，拖慢常规迭代）；tag 推送时该 job 被 skip，`needs` 视为 success，release 正常产出 android/linux/windows/macos 四平台产物，`files` 保留 `artifacts/app-hap/*` glob 供手动构建产物挂载。
 - unsigned HAP 可直接产出用于内部测试；签名 HAP 需华为开发者证书（.p12 + .p7b profile），属敏感文件，留后续 spec 扩展，CI 不签。
 - Riverpod 2 中 `ref.listen(provider, callback)` 写在 `ConsumerStatefulWidget.build` 顶部虽合法（Riverpod 自动去重重复注册），但推荐改用 `initState` + `ref.listenManual(provider, callback)` 注册副作用型 listener（如弹 SnackBar），避免在 widget build 期间注册 listener 的潜在副作用（build 可能被框架多次调用）。
 
