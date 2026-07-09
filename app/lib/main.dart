@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'ui/camera_viewport.dart';
 import 'ui/control_panel.dart';
+import 'ui/devices_screen.dart';
 import 'ui/settings_screen.dart';
 import 'ui/telemetry_panel.dart';
 import 'ui/theme.dart';
@@ -33,36 +34,67 @@ class SmartCarApp extends ConsumerWidget {
       themeMode: themeMode,
       debugShowCheckedModeBanner: false,
       home: const HomeScreen(),
-      routes: {
-        '/settings': (ctx) => const SettingsScreen(),
-      },
     );
   }
 }
 
-class HomeScreen extends ConsumerWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends ConsumerState<HomeScreen> {
+  int _currentIndex = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    // IndexedStack 保活三个 tab：切换时不重建子页，
+    // 保留 BLE 连接与摄像头流。
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('智能小车遥控'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.settings),
-            tooltip: '参数设置',
-            onPressed: () => Navigator.pushNamed(context, '/settings'),
+      body: IndexedStack(
+        index: _currentIndex,
+        children: const [
+          _DriveTab(),
+          DevicesScreen(),
+          SettingsScreen(),
+        ],
+      ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _currentIndex,
+        onDestinationSelected: (i) => setState(() => _currentIndex = i),
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.directions_car),
+            label: '驾驶',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.bluetooth),
+            label: '设备',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.settings),
+            label: '设置',
           ),
         ],
       ),
-      body: const Column(
-        children: [
-          Expanded(flex: 3, child: CameraViewport()),
-          TelemetryPanel(),
-          Expanded(flex: 2, child: ControlPanel()),
-        ],
-      ),
+    );
+  }
+}
+
+/// 驾驶 tab：摄像头视口 + 遥测面板 + 操控面板（沿用原 HomeScreen body 布局）。
+class _DriveTab extends StatelessWidget {
+  const _DriveTab();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Column(
+      children: [
+        Expanded(flex: 3, child: CameraViewport()),
+        TelemetryPanel(),
+        Expanded(flex: 2, child: ControlPanel()),
+      ],
     );
   }
 }
