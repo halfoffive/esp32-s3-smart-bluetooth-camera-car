@@ -55,11 +55,10 @@ class TelemetryPanel extends ConsumerWidget {
           const SizedBox(height: 4),
           Text(
             label,
-            style: TextStyle(
-              fontSize: 10,
-              color: cs.onSurfaceVariant,
-              fontFamily: 'Inter',
-            ),
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: cs.onSurfaceVariant,
+                ) ??
+                TextStyle(fontSize: 10, color: cs.onSurfaceVariant),
           ),
         ],
       ),
@@ -87,11 +86,10 @@ class TelemetryPanel extends ConsumerWidget {
           const SizedBox(height: 4),
           Text(
             '电池',
-            style: TextStyle(
-              fontSize: 10,
-              color: cs.onSurfaceVariant,
-              fontFamily: 'Inter',
-            ),
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: cs.onSurfaceVariant,
+                ) ??
+                TextStyle(fontSize: 10, color: cs.onSurfaceVariant),
           ),
         ],
       ),

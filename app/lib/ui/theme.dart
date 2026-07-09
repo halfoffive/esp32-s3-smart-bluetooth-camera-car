@@ -3,6 +3,7 @@
 // 使用 Material 3 默认 ColorScheme（不设种子色），提供浅色与深色主题。
 // 默认跟随系统（ThemeMode.system），用户可在设置页切换 系统/浅色/深色。
 // 结构色一律取自 Theme.of(context).colorScheme；状态语义色见 HudStatus。
+// 等宽数值字体走系统 monospace 回退（不引入第三方字体包），与 M3 textTheme 角色统一。
 
 import 'package:flutter/material.dart';
 
@@ -35,7 +36,7 @@ class AppTheme {
     Color? color,
   }) {
     return TextStyle(
-      fontFamily: 'Roboto Mono',
+      fontFamily: 'monospace',
       fontFamilyFallback: const ['monospace'],
       fontSize: size,
       fontWeight: weight,
