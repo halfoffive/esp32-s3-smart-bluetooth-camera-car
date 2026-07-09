@@ -13,6 +13,7 @@ use flutter_rust_bridge::frb;
 // 重新导出常用类型，便于 Flutter 侧直接引用
 pub use crate::ble::{ControlPayload, ImageChunk, PacketKind, TelemetryPayload};
 pub use crate::control::encode_control;
+pub use crate::control::{encode_set_params, encode_set_wifi};
 pub use crate::image::ImageAssembler;
 
 /// 构造一个新的 ImageAssembler 实例供 Dart 侧使用。

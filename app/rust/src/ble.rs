@@ -18,6 +18,10 @@ pub const CMD_IMAGE: u8 = 0x01;
 pub const CMD_CONTROL: u8 = 0x02;
 /// 命令类型：遥测数据（固件→App）
 pub const CMD_TELEMETRY: u8 = 0x03;
+/// 命令类型：下发 PID + 物理参数（App→固件）
+pub const CMD_SET_PARAMS: u8 = 0x04;
+/// 命令类型：下发 WiFi 配置（App→固件，固件存 NVS）
+pub const CMD_SET_WIFI: u8 = 0x05;
 
 /// CRC8 校验（多项式 0x07，初始 0x00，无反射，无最终 XOR）。
 /// 纯函数：对任意字节切片计算校验值。
@@ -59,6 +63,21 @@ pub struct TelemetryPayload {
     pub right_speed_mm_s: i16,
     pub target_speed_mm_s: i16,
     pub battery_mv: u16,
+}
+
+/// 下发参数载荷（CMD=0x04，App→固件）
+///
+/// 字段顺序即小端字节序，与固件 `SetParamsPayload`（pragma pack）二进制一致。
+/// Kp/Ki/Kd 为 f32（IEEE 754 单精度），ramp_ms 为 u32，wheel_dia/wheel_base 为 u16，enc_slots 为 u8。
+/// 总长 = 4+4+4+4+2+2+1 = 21 字节。
+pub struct SetParamsPayload {
+    pub kp: f32,
+    pub ki: f32,
+    pub kd: f32,
+    pub ramp_ms: u32,
+    pub wheel_diameter_mm: u16,
+    pub wheel_base_mm: u16,
+    pub encoder_slots: u8,
 }
 
 /// 解析后的包类型
