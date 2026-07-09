@@ -10,7 +10,10 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_reactive_ble/flutter_reactive_ble.dart';
+// 仅需 DiscoveredDevice 类型；隐藏 flutter_reactive_ble 自带的 ConnectionStatus，
+// 让本文件统一使用 ble_controller.dart 中定义的 ConnectionStatus enum。
+import 'package:flutter_reactive_ble/flutter_reactive_ble.dart'
+    hide ConnectionStatus;
 
 import '../ble/ble_controller.dart';
 
