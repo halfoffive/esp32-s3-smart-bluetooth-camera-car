@@ -138,7 +138,7 @@ class DevicesScreen extends ConsumerWidget {
                       return ListTile(
                         title: Text(device.name),
                         subtitle: Text(device.id),
-                        trailing: FilledTonalButton(
+                        trailing: FilledButton.tonal(
                           onPressed: connectDisabled
                               ? null
                               : () => ref
