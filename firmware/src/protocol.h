@@ -43,6 +43,12 @@
 #ifndef CMD_TELEMETRY
 #define CMD_TELEMETRY         0x03
 #endif
+#ifndef CMD_SET_PARAMS
+#define CMD_SET_PARAMS        0x04
+#endif
+#ifndef CMD_SET_WIFI
+#define CMD_SET_WIFI          0x05
+#endif
 
 /* ============================================================
  * 静态断言宏（兼容 C/C++）
@@ -107,6 +113,24 @@ struct TelemetryPayload {
 };
 #pragma pack(pop)
 PROTO_STATIC_ASSERT(sizeof(struct TelemetryPayload) == 12, "TelemetryPayload must be 12 bytes");
+
+/* ============================================================
+ * CMD=0x04 下发参数载荷（21 字节，App → 固件）
+ * 字段顺序与 app/rust/src/ble.rs SetParamsPayload 一致（小端）：
+ *   float(4) + float(4) + float(4) + uint32(4) + uint16(2) + uint16(2) + uint8(1) = 21
+ * ============================================================ */
+#pragma pack(push, 1)
+struct SetParamsPayload {
+    float    kp;             // 比例系数
+    float    ki;             // 积分系数
+    float    kd;             // 微分系数
+    uint32_t ramp_ms;        // 正弦加速时长 (ms)
+    uint16_t wheel_dia_mm;   // 轮径 (mm)
+    uint16_t wheel_base_mm;  // 轮距 (mm)
+    uint8_t  enc_slots;      // 编码器槽数
+};
+#pragma pack(pop)
+PROTO_STATIC_ASSERT(sizeof(struct SetParamsPayload) == 21, "SetParamsPayload must be 21 bytes");
 
 /* ============================================================
  * 函数实现（static inline，header-only；含 C/C++ 兼容）

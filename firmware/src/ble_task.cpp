@@ -24,7 +24,9 @@
 #include "crc8.h"
 #include "ble_task.h"
 #include "camera_task.h"  // CameraFrame 类型定义
-#include "motor_task.h"   // motor_stop()，用于 onDisconnect 即时停车
+#include "motor_task.h"   // motor_stop() / motor_set_pid / motor_set_ramp / motor_set_physical
+#include "params_store.h" // params_store_save_pid / params_store_save_physical
+#include "wifi_config.h"  // wifi_config_set
 
 /* ============================================================
  * 全局状态
@@ -77,19 +79,84 @@ class ControlCharacteristicCallbacks : public BLECharacteristicCallbacks {
         if (len < 6) return;
         const uint8_t* buf = reinterpret_cast<const uint8_t*>(raw.c_str());
 
-        // 1) CRC 校验
+        // 1) CRC + 帧结构校验（sync / len / crc）
         if (!proto_validate(buf, len)) {
-            // 校验失败，丢弃（可在此处增加失败计数器）
+            // 校验失败，丢弃（BLE 控制特征无 response，不回复）
             return;
         }
-        // 2) 解析控制载荷
-        ControlPayload ctrl;
-        if (!proto_parse_control(buf, len, &ctrl)) {
-            return;
+
+        // 2) 按 CMD 分发
+        //    payload 起始于 buf[5]，长度 = proto_len - 1（已减去 CMD 字节）
+        uint8_t  cmd         = buf[4];
+        uint16_t proto_len   = ((uint16_t)buf[2] << 8) | buf[3];
+        size_t   payload_len = (size_t)proto_len - 1;
+        const uint8_t* payload = &buf[5];
+
+        switch (cmd) {
+        case CMD_CONTROL: {
+            // 走原有解析路径：proto_parse_control 内部会再次校验 CMD 与载荷长度
+            ControlPayload ctrl;
+            if (!proto_parse_control(buf, len, &ctrl)) {
+                return;
+            }
+            if (g_control_cb != nullptr) {
+                g_control_cb(&ctrl, g_control_user);
+            }
+            break;
         }
-        // 3) 调用注册的回调（电机任务消费）
-        if (g_control_cb != nullptr) {
-            g_control_cb(&ctrl, g_control_user);
+        case CMD_SET_PARAMS: {
+            // 期望 proto_len = 1(CMD) + 21(载荷) = 22
+            if (proto_len != (uint16_t)(1 + sizeof(SetParamsPayload))) {
+                return;
+            }
+            // #pragma pack 保证结构紧凑，memcpy 后字段即与 Rust 侧小端布局一致
+            SetParamsPayload p;
+            memcpy(&p, payload, sizeof(p));
+            // 运行时覆盖内存中参数
+            motor_set_pid(p.kp, p.ki, p.kd);
+            motor_set_ramp(p.ramp_ms);
+            motor_set_physical(p.wheel_dia_mm, p.wheel_base_mm, p.enc_slots);
+            // 持久化到 NVS，下次启动时 motor_init / speed_sensor_init 恢复
+            params_store_save_pid(p.kp, p.ki, p.kd, p.ramp_ms);
+            params_store_save_physical(p.wheel_dia_mm, p.wheel_base_mm, p.enc_slots);
+            break;
+        }
+        case CMD_SET_WIFI: {
+            // 载荷布局：ssid_len(u8) + ssid(ssid_len) + pass_len(u8) + pass(pass_len)
+            // 至少需要两个长度字节
+            if (payload_len < 2) {
+                return;
+            }
+            uint8_t ssid_len = payload[0];
+            if (ssid_len > WIFI_SSID_MAX_LEN) {
+                return;
+            }
+            // 检查 ssid 后还能读到一个 pass_len 字节
+            if (payload_len < (size_t)1 + ssid_len + 1) {
+                return;
+            }
+            uint8_t pass_len = payload[1 + ssid_len];
+            if (pass_len > WIFI_PASS_MAX_LEN) {
+                return;
+            }
+            // 总长度必须严格匹配，防止尾部垃圾
+            if (payload_len != (size_t)(1 + ssid_len + 1 + pass_len)) {
+                return;
+            }
+            // 拷贝到本地缓冲区并强制 \0 结尾，防 overflow
+            char ssid[33];
+            char pass[65];
+            memcpy(ssid, &payload[1], ssid_len);
+            ssid[ssid_len] = '\0';
+            memcpy(pass, &payload[2 + ssid_len], pass_len);
+            pass[pass_len] = '\0';
+            // 当前阶段仅持久化到 NVS，不发起 WiFi 连接
+            wifi_config_set(ssid, pass);
+            break;
+        }
+        default:
+            // 未知 CMD：丢弃，不崩溃
+            break;
         }
     }
 };
