@@ -42,11 +42,11 @@
 
 ## CI 验证
 
-- [ ] push 触发 App Build workflow，`cargo-doc` job ✅ success（clippy 零警告门槛通过）
-- [ ] `build-matrix` job 4 平台（apk/linux/windows/macos）✅ success（Part A 改动编译通过）
-- [ ] `build-hap` job 运行（允许失败但记录日志，用于调试 OpenHarmony 工具链问题）
-- [ ] 若 `build-hap` 成功，`app-hap` artifact 已上传
-- [ ] release job（若 tag 推送）包含 HAP 产物
+- [x] push 触发 App Build workflow，`cargo-doc` job ✅ success（clippy 零警告门槛通过）
+- [x] `build-matrix` job 4 平台（apk/linux/windows/macos）✅ success（Part A 改动编译通过）
+- [x] `build-hap` job 运行（允许失败但记录日志，用于调试 OpenHarmony 工具链问题）—— failure 但 continue-on-error 生效，run 整体 success
+- [ ] 若 `build-hap` 成功，`app-hap` artifact 已上传（本轮失败，artifact 未上传，待工具链问题修复后验证）
+- [ ] release job（若 tag 推送）包含 HAP 产物（本次未推 tag，release skipped，符合预期）
 
 ## 用户实测验证（CI 通过后请用户确认）
 
