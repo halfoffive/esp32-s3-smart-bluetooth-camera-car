@@ -7,7 +7,6 @@
 //   - 释放自动回中并回调 (0, 0)
 
 import 'package:flutter/material.dart';
-import 'theme.dart';
 
 /// 虚拟摇杆。
 ///
