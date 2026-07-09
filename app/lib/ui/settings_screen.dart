@@ -1,17 +1,17 @@
 // settings_screen.dart - 参数设置页
 //
-// 表单：PID Kp/Ki/Kd、T_ramp、轮径、轮距、编码器槽数。
-// 用 shared_preferences 持久化，键名前缀 car_。
-// 顶部说明：这些参数当前仅本地保存，未来版本可下发设备。
+// 表单：PID Kp/Ki/Kd、T_ramp、轮径、轮距、编码器槽数 + WiFi 配置。
+// 本地 shared_preferences 持久化（键名前缀 car_），已连接设备时同步下发。
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../ble/ble_controller.dart';
 import 'theme.dart';
 import 'theme_mode_controller.dart';
 
-/// 设置页：PID + 物理参数表单。
+/// 设置页：PID + 物理参数表单 + WiFi 配置。
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
 
@@ -21,6 +21,7 @@ class SettingsScreen extends ConsumerStatefulWidget {
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   final _formKey = GlobalKey<FormState>();
+  final _wifiFormKey = GlobalKey<FormState>();
 
   final _kpCtrl = TextEditingController();
   final _kiCtrl = TextEditingController();
@@ -29,6 +30,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   final _wheelDiameterCtrl = TextEditingController();
   final _wheelBaseCtrl = TextEditingController();
   final _encoderSlotsCtrl = TextEditingController();
+  final _ssidCtrl = TextEditingController();
+  final _passwordCtrl = TextEditingController();
 
   bool _loaded = false;
 
@@ -53,29 +56,61 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     if (mounted) setState(() => _loaded = true);
   }
 
-  /// 保存所有字段到 shared_preferences。
+  /// 保存参数：写本地 shared_preferences 兜底 + 下发设备（已连接时）。
   Future<void> _save() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
+    _formKey.currentState?.save();
+
+    // 解析表单值（缺失用 spec 默认值兜底）
+    final kp = double.tryParse(_kpCtrl.text) ?? 2.0;
+    final ki = double.tryParse(_kiCtrl.text) ?? 0.0;
+    final kd = double.tryParse(_kdCtrl.text) ?? 0.5;
+    final tRamp = double.tryParse(_tRampCtrl.text) ?? 1.5;
+    final wheelDiameter = double.tryParse(_wheelDiameterCtrl.text) ?? 65;
+    final wheelBase = double.tryParse(_wheelBaseCtrl.text) ?? 130;
+    final encoderSlots = int.tryParse(_encoderSlotsCtrl.text) ?? 20;
+
+    // 本地缓存兜底
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setDouble('car_kp', double.tryParse(_kpCtrl.text) ?? 2.0);
-    await prefs.setDouble('car_ki', double.tryParse(_kiCtrl.text) ?? 0.0);
-    await prefs.setDouble('car_kd', double.tryParse(_kdCtrl.text) ?? 0.5);
-    await prefs.setDouble('car_t_ramp', double.tryParse(_tRampCtrl.text) ?? 1.5);
-    await prefs.setDouble(
-      'car_wheel_diameter',
-      double.tryParse(_wheelDiameterCtrl.text) ?? 65,
-    );
-    await prefs.setDouble(
-      'car_wheel_base',
-      double.tryParse(_wheelBaseCtrl.text) ?? 130,
-    );
-    await prefs.setInt(
-      'car_encoder_slots',
-      int.tryParse(_encoderSlotsCtrl.text) ?? 20,
-    );
-    if (mounted) {
+    await prefs.setDouble('car_kp', kp);
+    await prefs.setDouble('car_ki', ki);
+    await prefs.setDouble('car_kd', kd);
+    await prefs.setDouble('car_t_ramp', tRamp);
+    await prefs.setDouble('car_wheel_diameter', wheelDiameter);
+    await prefs.setDouble('car_wheel_base', wheelBase);
+    await prefs.setInt('car_encoder_slots', encoderSlots);
+
+    // 下发设备（失败时由 BleController.errorMessage 统一展示）
+    final errBefore = ref.read(bleControllerProvider).errorMessage;
+    await ref.read(bleControllerProvider.notifier).sendParams(
+          kp: kp,
+          ki: ki,
+          kd: kd,
+          rampMs: (tRamp * 1000).round(),
+          wheelDiameterMm: wheelDiameter.round(),
+          wheelBaseMm: wheelBase.round(),
+          encoderSlots: encoderSlots,
+        );
+    if (mounted && ref.read(bleControllerProvider).errorMessage == errBefore) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('参数已保存（仅本地）')),
+        const SnackBar(content: Text('已保存到设备')),
+      );
+    }
+  }
+
+  /// 下发 WiFi 配置到设备。
+  Future<void> _sendWifi() async {
+    if (!(_wifiFormKey.currentState?.validate() ?? false)) return;
+    _wifiFormKey.currentState?.save();
+
+    final errBefore = ref.read(bleControllerProvider).errorMessage;
+    await ref.read(bleControllerProvider.notifier).sendWifiConfig(
+          ssid: _ssidCtrl.text.trim(),
+          password: _passwordCtrl.text,
+        );
+    if (mounted && ref.read(bleControllerProvider).errorMessage == errBefore) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('WiFi 配置已下发到设备')),
       );
     }
   }
@@ -90,6 +125,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       _wheelDiameterCtrl,
       _wheelBaseCtrl,
       _encoderSlotsCtrl,
+      _ssidCtrl,
+      _passwordCtrl,
     ]) {
       c.dispose();
     }
@@ -99,91 +136,121 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+    final connected =
+        ref.watch(bleControllerProvider).status == ConnectionStatus.connected;
     return Scaffold(
       appBar: AppBar(title: const Text('参数设置')),
       body: !_loaded
           ? const Center(child: CircularProgressIndicator())
-          : Form(
-              key: _formKey,
-              child: ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                  // 外观段
-                  _sectionTitle('外观'),
-                  ListTile(
-                    leading: const Icon(Icons.brightness_6_outlined),
-                    title: const Text('主题模式'),
-                    subtitle: const Text('默认跟随系统'),
+          : ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                // 外观段
+                _sectionTitle('外观'),
+                ListTile(
+                  leading: const Icon(Icons.brightness_6_outlined),
+                  title: const Text('主题模式'),
+                  subtitle: const Text('默认跟随系统'),
+                ),
+                const SizedBox(height: 8),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: SegmentedButton<ThemeMode>(
+                    segments: const [
+                      ButtonSegment(
+                          value: ThemeMode.system, label: Text('系统')),
+                      ButtonSegment(
+                          value: ThemeMode.light, label: Text('浅色')),
+                      ButtonSegment(
+                          value: ThemeMode.dark, label: Text('深色')),
+                    ],
+                    selected: {ref.watch(themeModeProvider)},
+                    onSelectionChanged: (selection) {
+                      ref.read(themeModeProvider.notifier).set(selection.first);
+                    },
                   ),
-                  const SizedBox(height: 8),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    child: SegmentedButton<ThemeMode>(
-                      segments: const [
-                        ButtonSegment(
-                            value: ThemeMode.system, label: Text('系统')),
-                        ButtonSegment(
-                            value: ThemeMode.light, label: Text('浅色')),
-                        ButtonSegment(
-                            value: ThemeMode.dark, label: Text('深色')),
-                      ],
-                      selected: {ref.watch(themeModeProvider)},
-                      onSelectionChanged: (selection) {
-                        ref.read(themeModeProvider.notifier).set(selection.first);
-                      },
-                    ),
-                  ),
-                  const Divider(height: 32),
-                  // 顶部说明
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: cs.surfaceContainerHigh,
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(
-                        color: cs.primary.withValues(alpha: 0.3),
+                ),
+                const Divider(height: 32),
+                // PID + 物理参数段
+                Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _sectionTitle('PID 系数'),
+                      _numField('Kp', _kpCtrl),
+                      _numField('Ki', _kiCtrl),
+                      _numField('Kd', _kdCtrl),
+                      const Divider(height: 32),
+                      _sectionTitle('物理参数'),
+                      _numField('T_ramp (s)', _tRampCtrl),
+                      _numField('轮径 (mm)', _wheelDiameterCtrl),
+                      _numField('轮距 (mm)', _wheelBaseCtrl),
+                      _numField('编码器槽数', _encoderSlotsCtrl, integer: true),
+                      const SizedBox(height: 24),
+                      FilledButton.icon(
+                        onPressed: connected ? _save : null,
+                        icon: const Icon(Icons.save_outlined),
+                        label: const Text('保存'),
+                        style: FilledButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
                       ),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(Icons.info_outline, size: 18, color: cs.primary),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            '这些参数当前仅本地保存，未来版本可下发设备。',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: cs.onSurfaceVariant,
-                            ),
-                          ),
+                      if (!connected) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          '请先连接设备',
+                          style: TextStyle(color: cs.onSurfaceVariant),
                         ),
                       ],
-                    ),
+                    ],
                   ),
-                  const SizedBox(height: 16),
-                  // PID 段
-                  _sectionTitle('PID 系数'),
-                  _numField('Kp', _kpCtrl),
-                  _numField('Ki', _kiCtrl),
-                  _numField('Kd', _kdCtrl),
-                  const Divider(height: 32),
-                  // 物理参数段
-                  _sectionTitle('物理参数'),
-                  _numField('T_ramp (s)', _tRampCtrl),
-                  _numField('轮径 (mm)', _wheelDiameterCtrl),
-                  _numField('轮距 (mm)', _wheelBaseCtrl),
-                  _numField('编码器槽数', _encoderSlotsCtrl, integer: true),
-                  const SizedBox(height: 24),
-                  FilledButton.icon(
-                    onPressed: _save,
-                    icon: const Icon(Icons.save_outlined),
-                    label: const Text('保存'),
-                    style: FilledButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                    ),
+                ),
+                const Divider(height: 32),
+                // WiFi 配置段
+                Form(
+                  key: _wifiFormKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text('WiFi 配置', style: tt.titleMedium),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: _ssidCtrl,
+                        decoration: const InputDecoration(labelText: 'SSID'),
+                        maxLength: 32,
+                        validator: (v) =>
+                            (v == null || v.trim().isEmpty) ? '不能为空' : null,
+                      ),
+                      TextFormField(
+                        controller: _passwordCtrl,
+                        decoration: const InputDecoration(labelText: '密码'),
+                        obscureText: true,
+                        maxLength: 64,
+                        validator: (v) =>
+                            (v == null || v.isEmpty) ? '不能为空' : null,
+                      ),
+                      const SizedBox(height: 24),
+                      FilledButton.icon(
+                        onPressed: connected ? _sendWifi : null,
+                        icon: const Icon(Icons.wifi),
+                        label: const Text('下发到设备'),
+                        style: FilledButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                      ),
+                      if (!connected) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          '请先连接设备',
+                          style: TextStyle(color: cs.onSurfaceVariant),
+                        ),
+                      ],
+                    ],
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
     );
   }
@@ -213,17 +280,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         controller: ctrl,
         keyboardType:
             integer ? TextInputType.number : const TextInputType.numberWithOptions(decimal: true),
-        decoration: InputDecoration(
-          labelText: label,
-          labelStyle: TextStyle(
-              color: Theme.of(context).colorScheme.onSurfaceVariant),
-          filled: true,
-          fillColor: Theme.of(context).colorScheme.surfaceContainerHigh,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(6),
-            borderSide: BorderSide.none,
-          ),
-        ),
+        decoration: InputDecoration(labelText: label),
         style: AppTheme.mono(size: 14),
         validator: (v) {
           if (v == null || v.isEmpty) return '不能为空';

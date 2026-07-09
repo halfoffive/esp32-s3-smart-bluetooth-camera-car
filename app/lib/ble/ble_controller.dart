@@ -495,6 +495,91 @@ class BleController extends StateNotifier<BleState> {
     }
   }
 
+  /// 发送 PID 参数与轮组几何参数（CMD=0x04）。
+  ///
+  /// 依赖 `flutter_rust_bridge_codegen generate` 重新生成 Dart 绑定；
+  /// CI 中 app.yml 的 'Generate flutter_rust_bridge bindings' 步骤会自动生成。
+  ///
+  /// 参数：
+  /// - [kp] 比例系数
+  /// - [ki] 积分系数
+  /// - [kd] 微分系数
+  /// - [rampMs] 速度爬坡时间（ms）
+  /// - [wheelDiameterMm] 轮直径（mm）
+  /// - [wheelBaseMm] 轴距（mm）
+  /// - [encoderSlots] 编码器槽数
+  Future<void> sendParams({
+    required double kp,
+    required double ki,
+    required double kd,
+    required int rampMs,
+    required int wheelDiameterMm,
+    required int wheelBaseMm,
+    required int encoderSlots,
+  }) async {
+    if (state.status != ConnectionStatus.connected) {
+      state = state.copyWith(errorMessage: '设备未连接');
+      return;
+    }
+    final deviceId = state.deviceId;
+    if (deviceId == null) return;
+
+    try {
+      final packet = await control_rust.encodeSetParams(
+        kp: kp,
+        ki: ki,
+        kd: kd,
+        rampMs: rampMs,
+        wheelDiameterMm: wheelDiameterMm,
+        wheelBaseMm: wheelBaseMm,
+        encoderSlots: encoderSlots,
+      );
+
+      final char = _qualifiedChar(
+        deviceId,
+        CarDeviceConstants.controlCharacteristicUuid,
+      );
+      await _ble.writeCharacteristicWithResponse(char, value: packet);
+    } catch (e) {
+      state = state.copyWith(errorMessage: '参数下发失败: $e');
+    }
+  }
+
+  /// 发送 WiFi 配置（CMD=0x05）。
+  ///
+  /// 依赖 `flutter_rust_bridge_codegen generate` 重新生成 Dart 绑定；
+  /// CI 中 app.yml 的 'Generate flutter_rust_bridge bindings' 步骤会自动生成。
+  Future<void> sendWifiConfig({
+    required String ssid,
+    required String password,
+  }) async {
+    if (ssid.isEmpty || password.isEmpty) {
+      state = state.copyWith(errorMessage: 'SSID 与密码不能为空');
+      return;
+    }
+    if (state.status != ConnectionStatus.connected) {
+      state = state.copyWith(errorMessage: '设备未连接');
+      return;
+    }
+    final deviceId = state.deviceId;
+    if (deviceId == null) return;
+
+    try {
+      final packet = await control_rust.encodeSetWifi(
+        ssid: ssid,
+        password: password,
+      );
+
+      final char = _qualifiedChar(
+        deviceId,
+        CarDeviceConstants.controlCharacteristicUuid,
+      );
+      await _ble.writeCharacteristicWithResponse(char, value: packet);
+    } catch (e) {
+      state = state.copyWith(errorMessage: 'WiFi 配置下发失败: $e');
+    }
+  }
+
   /* ---- 内部辅助 ---- */
 
   /// 最大重连次数
