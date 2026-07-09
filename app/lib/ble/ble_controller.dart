@@ -522,7 +522,10 @@ class BleController extends StateNotifier<BleState> {
       return;
     }
     final deviceId = state.deviceId;
-    if (deviceId == null) return;
+    if (deviceId == null) {
+      state = state.copyWith(errorMessage: '设备未连接');
+      return;
+    }
 
     try {
       final packet = await control_rust.encodeSetParams(
@@ -562,7 +565,10 @@ class BleController extends StateNotifier<BleState> {
       return;
     }
     final deviceId = state.deviceId;
-    if (deviceId == null) return;
+    if (deviceId == null) {
+      state = state.copyWith(errorMessage: '设备未连接');
+      return;
+    }
 
     try {
       final packet = await control_rust.encodeSetWifi(

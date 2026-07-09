@@ -26,16 +26,8 @@ class DevicesScreen extends ConsumerWidget {
     final state = ref.watch(bleControllerProvider);
     final cs = Theme.of(context).colorScheme;
 
-    // 错误信息变化时弹出 SnackBar：ref.listen 仅在状态变更时触发，
-    // 避免在 build 内直接产生副作用。同值不重复弹出。
-    ref.listen(bleControllerProvider, (previous, next) {
-      final msg = next.errorMessage;
-      if (msg != null && msg != previous?.errorMessage) {
-        ScaffoldMessenger.of(context)
-          ..clearSnackBars()
-          ..showSnackBar(SnackBar(content: Text(msg)));
-      }
-    });
+    // 错误反馈的 SnackBar 监听已上移到 HomeScreen root Scaffold，
+    // 避免设备 tab 不可见时错误 SnackBar 弹到隐藏的 Scaffold。
 
     // 已连接设备名称：从扫描结果按 id 查找（连接后 BleState 仅保留 deviceId）。
     final connectedDevice = state.deviceId == null
