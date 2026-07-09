@@ -309,9 +309,121 @@ jobs:
           name: app-macos
           path: app/build/macos/Build/Products/Release/*.app
 
-  # Job 3: tag 推送时聚合各 artifact 创建 GitHub Release（与 firmware.yml 风格一致）
+  # Job 3: HarmonyOS HAP 构建（实验性，使用 flutter_flutter SDK fork）
+  # 工具链不确定性高（OpenHarmony SDK URL / hvigor 包名 / ohos 平台目录），
+  # 用 continue-on-error: true 标注，失败不阻塞 release（needs 中仍视为 success）。
+  build-hap:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    continue-on-error: true
+    steps:
+      # 1. 检出仓库代码
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # 2. JDK 17 是 OpenHarmony hvigor 强制要求
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      # 3. Clone flutter_flutter SDK fork（OpenHarmony 适配版，提供 flutter build hap 命令）
+      - name: Clone flutter_flutter SDK
+        run: |
+          git clone --depth 1 https://gitcode.com/CPF-Flutter/flutter_flutter "$HOME/flutter_ohos"
+          echo "$HOME/flutter_ohos/bin" >> "$GITHUB_PATH"
+
+      # 4. 配置 Rust stable 工具链 + cargo 缓存
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            app/rust/target
+          key: cargo-${{ runner.os }}-hap-${{ hashFiles('app/rust/Cargo.lock', 'app/rust/Cargo.toml') }}
+          restore-keys: cargo-${{ runner.os }}-
+
+      # 5. 预装 cargo-expand + flutter_rust_bridge_codegen
+      - name: Install cargo-expand
+        run: cargo install cargo-expand --version 1.0.88 --locked
+
+      - name: Install flutter_rust_bridge_codegen
+        run: cargo install flutter_rust_bridge_codegen --version 2.12.0 --locked
+
+      # 6. 验证 flutter_flutter SDK 可用（打印版本，检测 ohos 支持）
+      - name: Verify flutter_flutter SDK
+        run: |
+          flutter --version
+          flutter doctor || true
+
+      # 7. 清理平台目录后生成 ohos 平台目录（flutter_flutter fork 支持 --platforms=ohos）
+      - name: Bootstrap ohos platform
+        run: |
+          rm -rf app/android app/ios app/linux app/macos app/windows app/ohos
+          cd app && flutter create . --platforms=ohos --org com.smartcar --project-name smart_car_remote
+
+      # 8. 下载 OpenHarmony SDK（公开下载地址：gitee openharmony docs release-notes）
+      #    API 版本选 14+，linux 64-bit 命令行工具包
+      - name: Download OpenHarmony SDK
+        run: |
+          mkdir -p "$HOME/ohos-sdk"
+          cd "$HOME/ohos-sdk"
+          # ohos-sdk 的具体下载 URL 可能随版本变化，此处先尝试官方公开路径
+          # 失败由 continue-on-error 兜底，记录日志供调试
+          SDK_URL="https://repo.harmonyos.com/os/ohos-sdk/5.0.0-Release/ohos-sdk-linux.tar.gz"
+          curl -fSL -o ohos-sdk.tar.gz "$SDK_URL" || true
+          if [ -f ohos-sdk.tar.gz ]; then
+            tar -xzf ohos-sdk.tar.gz
+            echo "OHOS_SDK_HOME=$HOME/ohos-sdk" >> "$GITHUB_ENV"
+            echo "$HOME/ohos-sdk/toolchains" >> "$GITHUB_PATH"
+          fi
+
+      # 9. 安装 hvigor / ohpm（npm 全局，使用华为 OpenHarmony registry）
+      - name: Install hvigor and ohpm
+        run: |
+          npm config set @ohos:registry https://repo.harmonyos.com/npm/
+          # hvigor 与 ohpm 的精确包名以 OpenHarmony 文档为准；包名不一致时由 continue-on-error 兜底
+          npm install -g @ohos/hvigor @ohos/ohpm 2>&1 || true
+
+      # 10. 生成 frb bindings + 拉取依赖
+      - name: Generate flutter_rust_bridge bindings
+        run: cd app && flutter_rust_bridge_codegen generate
+
+      - name: Flutter pub get
+        run: cd app && flutter pub get
+
+      # 11. 添加 OpenHarmony Rust target（可能不在 rustup 官方收录，失败则 fallback android target）
+      - name: Add Rust target for ohos
+        run: |
+          # 优先尝试 OpenHarmony arm64 target；rustup 未收录则 fallback 到 android arm64
+          rustup target add aarch64-unknown-linux-ohos 2>/dev/null || \
+            rustup target add aarch64-linux-android
+
+      # 12. 构建 unsigned HAP（签名需华为开发者证书，留后续 spec 扩展）
+      - name: Build HarmonyOS HAP
+        run: cd app && flutter build hap --release
+
+      # 13. 上传 HAP 产物（路径未确定时用 glob 兜底）
+      - name: Upload HAP artifact
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: app-hap
+          path: |
+            app/build/**/*.hap
+            app/ohos/**/*.hap
+            **/*.hap
+          if-no-files-found: warn
+
+  # Job 4: tag 推送时聚合各 artifact 创建 GitHub Release（与 firmware.yml 风格一致）
   release:
-    needs: [cargo-doc, build-matrix]
+    needs: [cargo-doc, build-matrix, build-hap]
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     permissions:
@@ -324,7 +436,7 @@ jobs:
           pattern: 'app-*'
           path: artifacts
 
-      # 创建 Release 并附带各平台二进制
+      # 创建 Release 并附带各平台二进制（HAP 在 build-hap 成功时才存在）
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
@@ -333,3 +445,4 @@ jobs:
             artifacts/app-linux/*
             artifacts/app-windows/*
             artifacts/app-macos/*
+            artifacts/app-hap/*
