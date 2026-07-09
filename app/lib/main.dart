@@ -48,20 +48,31 @@ class HomeScreen extends ConsumerStatefulWidget {
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   int _currentIndex = 0;
+  ProviderSubscription<BleState>? _bleSub;
 
   @override
   void initState() {
     super.initState();
-    // 错误反馈监听注册在 initState（Riverpod 2 推荐用法），
-    // 避免 build 期间注册 listener 的副作用。
-    ref.listenManual(bleControllerProvider, (previous, next) {
-      final msg = next.errorMessage;
-      if (msg != null && msg != previous?.errorMessage) {
-        ScaffoldMessenger.of(context)
-          ..clearSnackBars()
-          ..showSnackBar(SnackBar(content: Text(msg)));
-      }
+    // 错误反馈监听注册延迟到第一帧渲染完成（addPostFrameCallback），
+    // 确保 ScaffoldMessenger 已挂载，避免 initState 阶段 context 未完全可用。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _bleSub = ref.listenManual<BleState>(bleControllerProvider, (previous, next) {
+        final msg = next.errorMessage;
+        if (msg != null && msg != previous?.errorMessage) {
+          if (mounted) {
+            ScaffoldMessenger.of(context)
+              ..clearSnackBars()
+              ..showSnackBar(SnackBar(content: Text(msg)));
+          }
+        }
+      });
     });
+  }
+
+  @override
+  void dispose() {
+    _bleSub?.close();
+    super.dispose();
   }
 
   @override
@@ -80,7 +91,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
-        onDestinationSelected: (i) => setState(() => _currentIndex = i),
+        onDestinationSelected: (i) {
+          if (i != _currentIndex) {
+            setState(() => _currentIndex = i);
+          }
+        },
         destinations: const [
           NavigationDestination(
             icon: Icon(Icons.directions_car),
