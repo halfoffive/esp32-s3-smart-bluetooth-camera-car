@@ -214,7 +214,7 @@ class BleController extends StateNotifier<BleState> {
       _scanTimer = null;
       if (!done.isCompleted) {
         if (found.isEmpty) {
-          state = BleState(
+          state = const BleState(
             status: ConnectionStatus.disconnected,
             errorMessage: '未发现设备 ${CarDeviceConstants.deviceName}',
           );

@@ -148,10 +148,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               children: [
                 // 外观段
                 _sectionTitle('外观'),
-                ListTile(
-                  leading: const Icon(Icons.brightness_6_outlined),
-                  title: const Text('主题模式'),
-                  subtitle: const Text('默认跟随系统'),
+                const ListTile(
+                  leading: Icon(Icons.brightness_6_outlined),
+                  title: Text('主题模式'),
+                  subtitle: Text('默认跟随系统'),
                 ),
                 const SizedBox(height: 8),
                 Padding(

@@ -123,7 +123,7 @@ class TiltController {
 
     // stop 指令立即下发，不节流：松手后若被节流丢弃，电机会继续运行（安全隐患）
     if (direction == 0 && turn == 0) {
-      _controller.add(ControlCommand(direction: 0, turn: 0, speedPct: 0));
+      _controller.add(const ControlCommand(direction: 0, turn: 0, speedPct: 0));
       _lastSent = DateTime.now();
       return;
     }

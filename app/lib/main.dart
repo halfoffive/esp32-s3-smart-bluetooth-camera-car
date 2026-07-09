@@ -125,10 +125,10 @@ class _DriveTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return const Scaffold(
       body: SafeArea(
         child: Column(
-          children: const [
+          children: [
             Expanded(flex: 3, child: CameraViewport()),
             TelemetryPanel(),
             Expanded(flex: 2, child: ControlPanel()),
