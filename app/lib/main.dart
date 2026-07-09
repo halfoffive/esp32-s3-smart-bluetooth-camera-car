@@ -50,11 +50,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   int _currentIndex = 0;
 
   @override
-  Widget build(BuildContext context) {
-    // 统一在 root Scaffold 监听 errorMessage：无论用户当前在哪个 tab，
-    // 错误反馈都通过 root ScaffoldMessenger 弹 SnackBar 可见。
-    // （之前 devices_screen 内部的监听会把 SnackBar 弹到隐藏的设备 tab）
-    ref.listen(bleControllerProvider, (previous, next) {
+  void initState() {
+    super.initState();
+    // 错误反馈监听注册在 initState（Riverpod 2 推荐用法），
+    // 避免 build 期间注册 listener 的副作用。
+    ref.listenManual(bleControllerProvider, (previous, next) {
       final msg = next.errorMessage;
       if (msg != null && msg != previous?.errorMessage) {
         ScaffoldMessenger.of(context)
@@ -62,7 +62,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ..showSnackBar(SnackBar(content: Text(msg)));
       }
     });
+  }
 
+  @override
+  Widget build(BuildContext context) {
     // IndexedStack 保活三个 tab：切换时不重建子页，
     // 保留 BLE 连接与摄像头流。
     return Scaffold(

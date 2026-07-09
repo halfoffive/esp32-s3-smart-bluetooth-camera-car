@@ -16,6 +16,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_reactive_ble/flutter_reactive_ble.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -114,7 +115,9 @@ final telemetryStreamProvider = StreamProvider<Telemetry>((ref) {
 /// 图像/遥测包分别由 [FrameStreamAssembler] / [TelemetryParser] 解析后
 /// 通过广播 StreamController 输出，UI 侧经 StreamProvider 订阅。
 class BleController extends StateNotifier<BleState> {
-  BleController() : super(const BleState());
+  BleController() : super(const BleState()) {
+    debugPrint('[BleController] constructed');
+  }
 
   final FlutterReactiveBle _ble = FlutterReactiveBle();
   final FrameStreamAssembler _frameAssembler = FrameStreamAssembler();
@@ -160,6 +163,7 @@ class BleController extends StateNotifier<BleState> {
   /// 扫描期间匹配设备实时写入 [BleState.discoveredDevices]；
   /// 扫描结束后若发现设备则保持列表供 UI 选择 connect，否则置错误信息。
   Future<void> startScan() async {
+    debugPrint('[BleController] startScan begin');
     // 已连接时不重新扫描：避免清掉特征订阅导致画面/遥测中断
     if (state.status == ConnectionStatus.connected) return;
     if (state.status == ConnectionStatus.scanning) return;
@@ -185,6 +189,7 @@ class BleController extends StateNotifier<BleState> {
         }
       },
       onError: (Object e) {
+        debugPrint('[BleController] scan error: $e');
         // 扫描流出错时一并取消超时定时器，避免回调竞态
         _scanTimer?.cancel();
         _scanTimer = null;
@@ -232,6 +237,7 @@ class BleController extends StateNotifier<BleState> {
 
   /// 连接指定设备：建立连接 → 协商 MTU 512 → 订阅 image/telemetry 特征 → 写控制占位。
   Future<void> connect(DiscoveredDevice device) async {
+    debugPrint('[BleController] connect: ${device.id}');
     _userDisconnect = false;
     _reconnectAttempts = 0;
     _reconnectTimer?.cancel();
@@ -252,6 +258,7 @@ class BleController extends StateNotifier<BleState> {
     _connSub = _ble.connectToDevice(id: device.id).listen(
       _onConnectionStateChange,
       onError: (Object e) {
+        debugPrint('[BleController] connect stream error: $e');
         // 连接流异常：触发断开处理（含自动重连）
         _onDisconnected(error: '连接错误: $e');
       },
@@ -260,6 +267,7 @@ class BleController extends StateNotifier<BleState> {
 
   /// 连接状态变化回调。
   void _onConnectionStateChange(ConnectionStateUpdate update) {
+    debugPrint('[BleController] conn state: ${update.connectionState}');
     switch (update.connectionState) {
       case DeviceConnectionState.connected:
         _onConnected();
@@ -278,6 +286,7 @@ class BleController extends StateNotifier<BleState> {
 
   /// 连接成功后：协商 MTU、订阅特征、写控制占位。
   Future<void> _onConnected() async {
+    debugPrint('[BleController] _onConnected');
     // 重入保护：connected 事件可能重复触发，避免并发初始化破坏订阅
     if (_initializing) return;
     _initializing = true;
@@ -314,6 +323,7 @@ class BleController extends StateNotifier<BleState> {
             _frameAssembler.handlePacket(Uint8List.fromList(bytes));
           },
           onError: (e) {
+            debugPrint('[BleController] image stream error: $e');
             state = state.copyWith(errorMessage: '特征订阅错误: $e');
           },
         );
@@ -324,6 +334,7 @@ class BleController extends StateNotifier<BleState> {
             _telemetryParser.handlePacket(Uint8List.fromList(bytes));
           },
           onError: (e) {
+            debugPrint('[BleController] telemetry stream error: $e');
             state = state.copyWith(errorMessage: '特征订阅错误: $e');
           },
         );
@@ -382,6 +393,7 @@ class BleController extends StateNotifier<BleState> {
 
   /// 连接断开回调：用户主动断开则不重连；异常断开则启动自动重连。
   void _onDisconnected({String? error}) {
+    debugPrint('[BleController] _onDisconnected: error=$error');
     _cancelCharacteristicSubs();
 
     // 幂等守卫：若已在重连中/已断开（重复触发）且非用户主动断开，
