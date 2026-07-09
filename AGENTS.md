@@ -111,7 +111,7 @@ cargo doc --no-deps --open            # 本地浏览
 
 - **Rust 侧**：函数式编程风格，纯函数优先，写适量中文注释。
 - **Flutter 侧**：Material Design 3 **默认配色**（`useMaterial3: true`，不设 `colorSchemeSeed` / 自定义种子色），结构色一律取自 `Theme.of(context).colorScheme`；**深浅色默认跟随系统**（`ThemeMode.system`），用户可在设置页切换 系统/浅色/深色（持久化到 `shared_preferences` 键 `car_theme_mode`）；状态语义色（正常/警告/危险）使用 Material 默认色（`Colors.green`/`Colors.amber`/`colorScheme.error`），由 `HudStatus` 承载，不随主题变化。Riverpod 状态管理。
-  - **M3 原生组件清单**（仅使用以下组件，不引入 `cupertino_icons` 之外的第三方 UI 包）：`FilledButton` / `FilledTonalButton` / `OutlinedButton` / `TextButton` 四档按钮、`NavigationBar` + `NavigationDestination` 底部导航、`SegmentedButton` 分段选择、M3 默认 `TextField`/`TextFormField` outline（**不自定义** `InputDecoration.border` / `fillColor` / `filled`，数值输入用 `_numField` 走默认 outline）。底部导航须配 `IndexedStack` 保活子页状态。
+  - **M3 原生组件清单**（仅使用以下组件，不引入 `cupertino_icons` 之外的第三方 UI 包）：`FilledButton` / `FilledTonalButton` / `OutlinedButton` / `TextButton` 四档按钮、`NavigationBar` + `NavigationDestination` 底部导航、`SegmentedButton` 分段选择、M3 默认 `TextField`/`TextFormField` outline（**不自定义** `InputDecoration.border` / `fillColor` / `filled`，数值输入用 `_numField` 走默认 outline）。底部导航须配 `IndexedStack` 保活子页状态；`IndexedStack` 应显式设 `sizing: StackFit.expand` 强制子节点填满 body，且每个 tab 子页须各自包 `Scaffold`（结构对称），避免裸 `Column` 在 loose 约束下 sizing 异常导致空白页或 tab 不切换。
   - **默认字体约定**：不引入第三方字体包（`pubspec.yaml` 无 `fonts:` 段，亦不引入 `google_fonts`）；等宽数值走系统 `'monospace'` fallback（`AppTheme.mono()` 设 `fontFamily: 'monospace'` + `fontFamilyFallback: ['monospace']`）；数值/标签文字使用 M3 `textTheme` 角色（`labelSmall` / `titleMedium` 等），不另设 `TextStyle` 颜色与字号硬编码。
 - **固件**：FreeRTOS 多任务，共享数据用 `volatile` + critical section 保护。
 - **提交**：遵循 Conventional Commits。
