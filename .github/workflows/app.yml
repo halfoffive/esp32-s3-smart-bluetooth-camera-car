@@ -49,7 +49,12 @@ jobs:
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      # 4. cargo 缓存：避免每次从零编译 frb codegen 与 Rust 依赖
+      # 4. 安装 cargo-binstall（预编译二进制安装器，加速后续工具链安装）
+      - name: Install cargo-binstall
+        run: |
+          curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
+
+      # 5. cargo 缓存：避免每次从零编译 frb codegen 与 Rust 依赖
       - name: Cache cargo
         uses: actions/cache@v6
         with:
@@ -60,38 +65,38 @@ jobs:
           key: cargo-${{ runner.os }}-${{ hashFiles('app/rust/Cargo.lock', 'app/rust/Cargo.toml') }}
           restore-keys: cargo-${{ runner.os }}-
 
-      # 5. 预装 cargo-expand，frb v2.12.0 codegen 依赖它解析 Rust 宏
+      # 6. 预装 cargo-expand，frb v2.12.0 codegen 依赖它解析 Rust 宏
       - name: Install cargo-expand
-        run: cargo install cargo-expand --version 1.0.88 --locked
+        run: cargo binstall --no-confirm cargo-expand --version 1.0.88
 
-      # 6. 安装 flutter_rust_bridge_codegen（cargo 官方推荐安装方式）
+      # 7. 安装 flutter_rust_bridge_codegen（预编译二进制安装，via cargo-binstall）
       # app/rust/src/frb_generated.rs 与 app/lib/src/rust/ 均为 gitignored，
       # 必须在 CI 中重新生成，否则 lib.rs 的 `mod frb_generated;` 会导致 E0583。
       - name: Install flutter_rust_bridge_codegen
-        run: cargo install flutter_rust_bridge_codegen --version 2.12.0 --locked
+        run: cargo binstall --no-confirm flutter_rust_bridge_codegen --version 2.12.0
 
-      # 7. 清理平台目录，避免残留文件导致 flutter create . 识别为已有目录而跳过生成
+      # 8. 清理平台目录，避免残留文件导致 flutter create . 识别为已有目录而跳过生成
       - name: Clean platform directories
         run: rm -rf app/android app/ios app/linux app/macos app/windows
         shell: bash
 
-      # 8. 补全 Flutter 平台原生目录（已存在则无副作用，不覆盖 lib/ 与 pubspec.yaml）
+      # 9. 补全 Flutter 平台原生目录（已存在则无副作用，不覆盖 lib/ 与 pubspec.yaml）
       - name: Bootstrap Flutter platforms
         run: cd app && flutter create . --platforms=android,linux,windows,macos --org com.smartcar --project-name smart_car_remote
 
-      # 9. 生成 Rust ↔ Dart 绑定代码（产出 frb_generated.rs）
+      # 10. 生成 Rust ↔ Dart 绑定代码（产出 frb_generated.rs）
       - name: Generate flutter_rust_bridge bindings
-        run: cd app && flutter_rust_bridge_codegen generate
+        run: cd app && flutter_rust_bridge_codegen generate --config flutter_rust_bridge.yaml
 
-      # 9.5. clippy 零警告门槛：任何 clippy 警告即构建失败
+      # 10.5. clippy 零警告门槛：任何 clippy 警告即构建失败
       - name: Run cargo clippy
         run: cd app/rust && cargo clippy --all-features -- -D warnings
 
-      # 10. 生成 Rust 子 crate 文档（不编译依赖、开启全部 feature，要求无警告）
+      # 11. 生成 Rust 子 crate 文档（不编译依赖、开启全部 feature，要求无警告）
       - name: Generate cargo doc
         run: cd app/rust && cargo doc --no-deps --all-features
 
-      # 11. 上传文档产物
+      # 12. 上传文档产物
       - name: Upload cargo doc
         uses: actions/upload-artifact@v7
         with:
@@ -136,7 +141,12 @@ jobs:
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      # 4. cargo 缓存：避免每次从零编译 frb codegen 与 Rust 依赖
+      # 4. 安装 cargo-binstall（预编译二进制安装器，加速后续工具链安装）
+      - name: Install cargo-binstall
+        run: |
+          curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
+
+      # 5. cargo 缓存：避免每次从零编译 frb codegen 与 Rust 依赖
       - name: Cache cargo
         uses: actions/cache@v6
         with:
@@ -147,13 +157,32 @@ jobs:
           key: cargo-${{ runner.os }}-${{ hashFiles('app/rust/Cargo.lock', 'app/rust/Cargo.toml') }}
           restore-keys: cargo-${{ runner.os }}-
 
-      # 5. 预装 cargo-expand，frb v2.12.0 codegen 依赖它解析 Rust 宏
+      # 6. 预装 cargo-expand，frb v2.12.0 codegen 依赖它解析 Rust 宏
       - name: Install cargo-expand
-        run: cargo install cargo-expand --version 1.0.88 --locked
+        run: cargo binstall --no-confirm cargo-expand --version 1.0.88
 
-      # 6. 安装 flutter_rust_bridge_codegen（cargo 官方推荐安装方式）
+      # 7. 安装 flutter_rust_bridge_codegen（预编译二进制安装，via cargo-binstall）
       - name: Install flutter_rust_bridge_codegen
-        run: cargo install flutter_rust_bridge_codegen --version 2.12.0 --locked
+        run: cargo binstall --no-confirm flutter_rust_bridge_codegen --version 2.12.0
+
+      # 5.5 安装 cargo-ndk（Android 交叉编译，仅 apk 条目需要）
+      - name: Install cargo-ndk
+        if: matrix.flutter_target == 'apk'
+        run: cargo binstall --no-confirm cargo-ndk
+
+      # 5.6 配置 Android NDK（cargo-ndk 依赖 NDK sysroot + linker）
+      - name: Setup Android NDK
+        if: matrix.flutter_target == 'apk'
+        run: |
+          # ubuntu-latest 通常预装 NDK，优先使用；否则安装
+          NDK_DIR=$(ls -d ${ANDROID_HOME}/ndk/*/ 2>/dev/null | head -1 | sed 's:/$::')
+          if [ -z "$NDK_DIR" ]; then
+            echo "y" | ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager "ndk;27.0.12077973" >/dev/null 2>&1
+            NDK_DIR="${ANDROID_HOME}/ndk/27.0.12077973"
+          fi
+          echo "ANDROID_NDK_HOME=${NDK_DIR}" >> $GITHUB_ENV
+          echo "ANDROID_NDK_ROOT=${NDK_DIR}" >> $GITHUB_ENV
+          echo "Using NDK: ${NDK_DIR}"
 
       # 7. 清理平台目录，避免残留文件导致 flutter create . 识别为已有目录而跳过生成
       - name: Clean platform directories
@@ -242,7 +271,7 @@ jobs:
 
       # 10. 生成 Rust ↔ Dart 绑定代码
       - name: Generate flutter_rust_bridge bindings
-        run: cd app && flutter_rust_bridge_codegen generate
+        run: cd app && flutter_rust_bridge_codegen generate --config flutter_rust_bridge.yaml
 
       # 10.5. clippy 零警告门槛：任何 clippy 警告即构建失败（所有矩阵条目均执行，clippy 轻量且仅涉及 Rust 侧）
       - name: Run cargo clippy
@@ -263,6 +292,11 @@ jobs:
       - name: Flutter pub get
         run: cd app && flutter pub get
 
+      # 13.5 编译 Rust cdylib 并复制到 jniLibs（仅 Android，flutter build apk 前需就位）
+      - name: Build Rust library for Android
+        if: matrix.flutter_target == 'apk'
+        run: cd app/rust && cargo ndk -t arm64-v8a -o ../android/app/src/main/jniLibs build --release
+
       # 14. 按平台分支构建 release 产物
       - name: Build Android APK
         if: matrix.flutter_target == 'apk'
@@ -272,13 +306,38 @@ jobs:
         if: matrix.flutter_target == 'linux'
         run: cd app && flutter build linux --release
 
+      # 14.5 编译 Rust cdylib 并复制到 Linux 产物目录
+      - name: Build and copy Rust cdylib (Linux)
+        if: matrix.flutter_target == 'linux'
+        run: |
+          cd app/rust && cargo build --release
+          mkdir -p ../build/linux/x64/release/bundle/lib/
+          cp target/release/librust_lib.so ../build/linux/x64/release/bundle/lib/
+
       - name: Build Windows desktop
         if: matrix.flutter_target == 'windows'
         run: cd app && flutter build windows --release
 
+      # 14.5 编译 Rust cdylib 并复制到 Windows 产物目录（frb v2 不自动构建原生库）
+      - name: Build and copy Rust cdylib (Windows)
+        if: matrix.flutter_target == 'windows'
+        shell: bash
+        run: |
+          cd app/rust && cargo build --release
+          cp target/release/rust_lib.dll ../build/windows/x64/runner/Release/
+
       - name: Build macOS desktop
         if: matrix.flutter_target == 'macos'
         run: cd app && flutter build macos --release
+
+      # 14.5 编译 Rust cdylib 并复制到 macOS .app 包
+      - name: Build and copy Rust cdylib (macOS)
+        if: matrix.flutter_target == 'macos'
+        run: |
+          cd app/rust && cargo build --release
+          APP_DIR="../build/macos/Build/Products/Release/smart_car_remote.app"
+          mkdir -p "$APP_DIR/Contents/Frameworks"
+          cp target/release/librust_lib.dylib "$APP_DIR/Contents/Frameworks/"
 
       # 15. 上传构建产物（按平台区分命名）
       - name: Upload Android artifact
@@ -309,175 +368,9 @@ jobs:
           name: app-macos
           path: app/build/macos/Build/Products/Release/*.app
 
-  # Job 3: HarmonyOS HAP 构建（实验性，使用 flutter_flutter SDK fork）
-  # 工具链不确定性高（OpenHarmony SDK URL / hvigor 包名 / ohos 平台目录），
-  # 用 continue-on-error: true 标注，失败不阻塞 release（needs 中仍视为 success）。
-  # 仅手动触发（workflow_dispatch），不进入 push/PR 自动构建流水线。
-  build-hap:
-    if: github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    continue-on-error: true
-    steps:
-      # 1. 检出仓库代码
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      # 2. JDK 17 是 OpenHarmony hvigor 强制要求
-      - name: Setup JDK 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      # 3. Clone flutter_flutter SDK fork（OpenHarmony 适配版，提供 flutter build hap 命令）
-      - name: Clone flutter_flutter SDK
-        run: |
-          git clone --depth 1 https://gitcode.com/CPF-Flutter/flutter_flutter "$HOME/flutter_ohos"
-          echo "$HOME/flutter_ohos/bin" >> "$GITHUB_PATH"
-
-      # 4. 修复 fork 的 Flutter SDK 版本号占位
-      #    gitcode fork 用 `git describe --tags` 推导版本，--depth 1 克隆无 tag → 回退常量
-      #    `0.0.0-unknown`，且 bootstrap 会把 0.0.0-unknown 写回 version 文件并新建
-      #    bin/cache/flutter.version.json。因此必须**先 bootstrap 再 patch 缓存**，
-      #    先写 version 文件无效（会被 bootstrap 覆盖）。
-      - name: Fix Flutter SDK version for fork
-        run: |
-          FLUTTER_VERSION="3.27.4"
-          # 1) 触发 bootstrap（创建 bin/cache/flutter.version.json，内容为 0.0.0-unknown）
-          flutter --version >/dev/null 2>&1 || true
-          # 2) bootstrap 后 patch 缓存里的 0.0.0-unknown → 真实版本号
-          #    后续命令因缓存存在且 !fetchTags 直接读缓存，不会再次覆盖
-          if [ -f "$HOME/flutter_ohos/bin/cache/flutter.version.json" ]; then
-            sed -i "s/0\.0\.0-unknown/$FLUTTER_VERSION/g" "$HOME/flutter_ohos/bin/cache/flutter.version.json"
-          fi
-          echo "$FLUTTER_VERSION" > "$HOME/flutter_ohos/version"
-          echo "Patched flutter version to $FLUTTER_VERSION"
-
-      # 5. 下载 OpenHarmony SDK（公开下载地址：huaweicloud openharmony 镜像）
-      #    fork 的 OhosSdk 校验逻辑（ohos_sdk.dart）：
-      #    1. initSdkVersionMap 扫描 OHOS_SDK_HOME 下纯数字命名的子目录
-      #    2. _getHdcPath 在 <sdkPath>/<数字>/toolchains/hdc 查找 hdc 可执行文件
-      #    3. 必须先解压外层 .tar.gz，再解压内层 linux/*.zip，最后重组为数字目录结构
-      - name: Download OpenHarmony SDK
-        run: |
-          mkdir -p "$HOME/ohos-sdk"
-          # 尝试 OpenHarmony SDK 官方公开镜像（华为云）
-          for SDK_URL in \
-            "https://repo.huaweicloud.com/openharmony/os/5.0.0-Release/ohos-sdk-windows_linux-public.tar.gz" \
-            "https://repo.huaweicloud.com/openharmony/os/4.0-Release/ohos-sdk-windows_linux-public.tar.gz"; do
-            echo "Trying: $SDK_URL"
-            if curl -fSL -o /tmp/ohos-sdk.tar.gz "$SDK_URL" 2>&1; then
-              echo "Downloaded from: $SDK_URL"
-              # 5.0.0-Release = API 12, 4.0-Release = API 10
-              case "$SDK_URL" in
-                *5.0.0-Release*) API_VERSION=12 ;;
-                *4.0-Release*)   API_VERSION=10 ;;
-                *)               API_VERSION=12 ;;
-              esac
-              break
-            fi
-          done
-          if [ -f /tmp/ohos-sdk.tar.gz ]; then
-            # 1) 解压外层 .tar.gz → ohos-sdk/{linux,windows}/*.zip
-            mkdir -p /tmp/ohos-sdk-extract
-            tar -xzf /tmp/ohos-sdk.tar.gz -C /tmp/ohos-sdk-extract
-            # 2) 解压内层 linux/*.zip → {ets,js,native,previewer,toolchains}/
-            if [ -d /tmp/ohos-sdk-extract/ohos-sdk/linux ]; then
-              cd /tmp/ohos-sdk-extract/ohos-sdk/linux
-              for f in *.zip; do unzip -o "$f" >/dev/null 2>&1; done
-              # 3) 重组为 OHOS_SDK_HOME/<API_VERSION>/toolchains/hdc 结构
-              mkdir -p "$HOME/ohos-sdk/$API_VERSION"
-              cp -r /tmp/ohos-sdk-extract/ohos-sdk/linux/* "$HOME/ohos-sdk/$API_VERSION/"
-              echo "SDK structure:"
-              find "$HOME/ohos-sdk" -name hdc -type f 2>/dev/null
-            fi
-            # OhosSdk 优先检查 OHOS_HOME，其次 OHOS_SDK_HOME
-            echo "OHOS_HOME=$HOME/ohos-sdk" >> "$GITHUB_ENV"
-            echo "OHOS_SDK_HOME=$HOME/ohos-sdk" >> "$GITHUB_ENV"
-            echo "HOS_SDK_HOME=$HOME/ohos-sdk" >> "$GITHUB_ENV"
-            echo "DEVECO_SDK_HOME=$HOME/ohos-sdk" >> "$GITHUB_ENV"
-          else
-            echo "WARNING: OpenHarmony SDK 下载失败，后续 flutter create 可能报 No Hmos SDK found"
-          fi
-
-      # 6. 安装 hvigor / ohpm（npm 全局，使用华为 OpenHarmony registry）
-      #    提前安装，避免 flutter build hap 时找不到 hvigor。
-      - name: Install hvigor and ohpm
-        run: |
-          npm config set @ohos:registry https://repo.harmonyos.com/npm/
-          # hvigor 与 ohpm 的精确包名以 OpenHarmony 文档为准；包名不一致时由 continue-on-error 兜底
-          npm install -g @ohos/hvigor @ohos/ohpm 2>&1 || true
-
-      # 7. 配置 Rust stable 工具链 + cargo 缓存
-      - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache cargo
-        uses: actions/cache@v6
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            app/rust/target
-          key: cargo-${{ runner.os }}-hap-${{ hashFiles('app/rust/Cargo.lock', 'app/rust/Cargo.toml') }}
-          restore-keys: cargo-${{ runner.os }}-
-
-      # 8. 预装 cargo-expand + flutter_rust_bridge_codegen
-      - name: Install cargo-expand
-        run: cargo install cargo-expand --version 1.0.88 --locked
-
-      - name: Install flutter_rust_bridge_codegen
-        run: cargo install flutter_rust_bridge_codegen --version 2.12.0 --locked
-
-      # 9. 验证 flutter_flutter SDK 可用（打印版本，检测 ohos 支持）
-      - name: Verify flutter_flutter SDK
-        run: |
-          flutter --version
-          flutter doctor || true
-
-      # 10. 清理平台目录后生成 ohos 平台目录（flutter_flutter fork 支持 --platforms=ohos）
-      - name: Bootstrap ohos platform
-        run: |
-          rm -rf app/android app/ios app/linux app/macos app/windows app/ohos
-          cd app && flutter create . --platforms=ohos --org com.smartcar --project-name smart_car_remote
-
-      # 11. 生成 frb bindings + 拉取依赖
-      - name: Generate flutter_rust_bridge bindings
-        run: cd app && flutter_rust_bridge_codegen generate
-
-      - name: Flutter pub get
-        run: cd app && flutter pub get
-
-      # 12. 添加 OpenHarmony Rust target（可能不在 rustup 官方收录，失败则 fallback android target）
-      - name: Add Rust target for ohos
-        run: |
-          # 优先尝试 OpenHarmony arm64 target；rustup 未收录则 fallback 到 android arm64
-          rustup target add aarch64-unknown-linux-ohos 2>/dev/null || \
-            rustup target add aarch64-linux-android
-
-      # 13. 构建 unsigned HAP（签名需华为开发者证书，留后续 spec 扩展）
-      - name: Build HarmonyOS HAP
-        run: cd app && flutter build hap --release
-
-      # 14. 上传 HAP 产物（优先常见 hvigor 产物路径，glob 兜底）
-      - name: Upload HAP artifact
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: app-hap
-          path: |
-            app/ohos/entry/build/default/outputs/default/*.hap
-            app/build/ohos/**/*.hap
-            app/build/**/*.hap
-            app/ohos/**/*.hap
-            **/*.hap
-          if-no-files-found: warn
-
   # Job 4: tag 推送时聚合各 artifact 创建 GitHub Release（与 firmware.yml 风格一致）
   release:
-    needs: [cargo-doc, build-matrix, build-hap]
+    needs: [cargo-doc, build-matrix]
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     permissions:
@@ -490,7 +383,7 @@ jobs:
           pattern: 'app-*'
           path: artifacts
 
-      # 创建 Release 并附带各平台二进制（HAP 在 build-hap 成功时才存在）
+      # 创建 Release 并附带各平台二进制
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
@@ -499,4 +392,3 @@ jobs:
             artifacts/app-linux/*
             artifacts/app-windows/*
             artifacts/app-macos/*
-            artifacts/app-hap/*
