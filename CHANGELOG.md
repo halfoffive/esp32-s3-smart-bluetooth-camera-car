@@ -8,6 +8,9 @@
 ## [Unreleased]
 
 ### Fixed
+- fix(ci/app): 修复 Windows runner 上 `Install cargo-binstall` 步骤失败 —— `cargo-bins/cargo-binstall@v1.9.0`（以及 `@main`）的 PowerShell 自安装脚本在 `windows-latest` 上跑 `iwr` 抛 `Object reference not set to an instance of an object`；改用广泛适配三平台的 `taiki-e/install-action@v2.9.4` + `with.tool: cargo-binstall` 装 binstall 本体，两个 job（`cargo-doc` / `build-matrix`）统一。
+
+### Fixed
 - fix(ci/app): 修复 code review 指出的 CI 稳定性问题 —— (1) `cargo-bins/cargo-binstall` action 从 `@main` pin 到 `@v1.9.0`，消除追随分支带来的供应链风险；(2) 为 Linux/Windows/macOS 三个 `Bundle rust_lib into <platform>` 步骤统一加 `set -e` + Rust cdylib 产物存在性预检 + Flutter release bundle 目标目录存在性预检，未命中时打印 `find` 辅助定位日志再 `exit 1`，避免未来 Flutter 目录漂移时报错含糊。
 
 ### Removed

@@ -63,8 +63,13 @@ jobs:
           restore-keys: cargo-${{ runner.os }}-
 
       # 5. 安装 cargo-binstall（下载预编译二进制而非源码编译，几秒完成）
+      #    通过 taiki-e/install-action 装 binstall 本体，避免 cargo-bins 官方
+      #    action 的 PowerShell 自安装脚本在 windows-latest 上 iwr 报
+      #    NullReferenceException 的问题。install-action 覆盖三平台。
       - name: Install cargo-binstall
-        uses: cargo-bins/cargo-binstall@v1.9.0
+        uses: taiki-e/install-action@v2.9.4
+        with:
+          tool: cargo-binstall
 
       # 6. 用 cargo-binstall 拉预编译 cargo-expand 与 flutter_rust_bridge_codegen，取代 cargo install（后者需要现场编译数分钟）
       - name: Install cargo tools (binstall)
@@ -153,8 +158,12 @@ jobs:
           restore-keys: cargo-${{ runner.os }}-
 
       # 5. 安装 cargo-binstall（下载预编译二进制而非源码编译）
+      #    通过 taiki-e/install-action 装 binstall 本体，规避 cargo-bins 官方
+      #    action 在 windows-latest 上的 PowerShell iwr NullReferenceException。
       - name: Install cargo-binstall
-        uses: cargo-bins/cargo-binstall@v1.9.0
+        uses: taiki-e/install-action@v2.9.4
+        with:
+          tool: cargo-binstall
 
       # 6. 用 cargo-binstall 拉 cargo-expand + flutter_rust_bridge_codegen
       - name: Install cargo tools (binstall)
