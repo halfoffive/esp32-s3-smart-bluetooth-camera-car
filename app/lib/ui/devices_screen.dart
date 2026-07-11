@@ -389,27 +389,42 @@ class _AnimatedListItem extends StatefulWidget {
   State<_AnimatedListItem> createState() => _AnimatedListItemState();
 }
 
-class _AnimatedListItemState extends State<_AnimatedListItem> {
-  bool _visible = false;
+class _AnimatedListItemState extends State<_AnimatedListItem>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _animation;
 
   @override
   void initState() {
     super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
+    _animation = CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeOutCubic,
+    );
     Future.delayed(Duration(milliseconds: widget.index * 60), () {
-      if (mounted) setState(() => _visible = true);
+      if (mounted) _controller.forward();
     });
   }
 
   @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return AnimatedOpacity(
-      opacity: _visible ? 1.0 : 0.0,
-      duration: const Duration(milliseconds: 250),
-      curve: Curves.easeOut,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeOut,
-        transform: Matrix4.translationValues(0, _visible ? 0 : 16, 0),
+    return FadeTransition(
+      opacity: _animation,
+      child: SlideTransition(
+        position: Tween<Offset>(
+          begin: const Offset(0, 0.05),
+          end: Offset.zero,
+        ).animate(_animation),
         child: widget.child,
       ),
     );
@@ -426,28 +441,40 @@ class _SlideInFromTop extends StatefulWidget {
   State<_SlideInFromTop> createState() => _SlideInFromTopState();
 }
 
-class _SlideInFromTopState extends State<_SlideInFromTop> {
-  bool _visible = false;
+class _SlideInFromTopState extends State<_SlideInFromTop>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _animation;
 
   @override
   void initState() {
     super.initState();
-    // 当前帧结束后触发 build，产生从 -40px 滑入的动画
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) setState(() => _visible = true);
-    });
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+    _animation = CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeOutCubic,
+    );
+    _controller.forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedOpacity(
-      opacity: _visible ? 1.0 : 0.0,
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeOut,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOut,
-        transform: Matrix4.translationValues(0, _visible ? 0 : -40, 0),
+    return FadeTransition(
+      opacity: _animation,
+      child: SlideTransition(
+        position: Tween<Offset>(
+          begin: const Offset(0, -0.1),
+          end: Offset.zero,
+        ).animate(_animation),
         child: widget.child,
       ),
     );

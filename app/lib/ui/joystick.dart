@@ -36,9 +36,6 @@ class _JoystickState extends State<Joystick>
   /// 按压动画控制器：0.0 -> 1.0 表示从静止到按下
   late AnimationController _pressController;
 
-  /// 当前按压动画进度
-  double _pressProgress = 0.0;
-
   @override
   void initState() {
     super.initState();
@@ -46,9 +43,6 @@ class _JoystickState extends State<Joystick>
       vsync: this,
       duration: const Duration(milliseconds: 100),
     );
-    _pressController.addListener(() {
-      setState(() => _pressProgress = _pressController.value);
-    });
   }
 
   @override
@@ -77,23 +71,28 @@ class _JoystickState extends State<Joystick>
           onPanStart: (d) => _update(d.localPosition, center),
           onPanUpdate: (d) => _update(d.localPosition, center),
           onPanEnd: (_) => _release(),
-          child: CustomPaint(
-            size: size,
-            painter: _JoystickPainter(
-              center: center,
-              thumb: center + _thumbOffset,
-              baseRadius: baseRadius,
-              thumbRadius: thumbRadius,
-              active: _active,
-              pressProgress: _pressProgress,
-              baseFill: cs.surfaceContainerHigh,
-              baseStroke: cs.primary,
-              crossColor: cs.onSurfaceVariant,
-              thumbShadow: cs.surface,
-              thumbIdle: cs.onSurface,
-              thumbActive: cs.primary,
-              thumbHighlight: cs.onSurface,
-            ),
+          child: AnimatedBuilder(
+            animation: _pressController,
+            builder: (context, child) {
+              return CustomPaint(
+                size: size,
+                painter: _JoystickPainter(
+                  center: center,
+                  thumb: center + _thumbOffset,
+                  baseRadius: baseRadius,
+                  thumbRadius: thumbRadius,
+                  active: _active,
+                  pressProgress: _pressController.value,
+                  baseFill: cs.surfaceContainerHigh,
+                  baseStroke: cs.primary,
+                  crossColor: cs.onSurfaceVariant,
+                  thumbShadow: cs.surface,
+                  thumbIdle: cs.onSurface,
+                  thumbActive: cs.primary,
+                  thumbHighlight: cs.onSurface,
+                ),
+              );
+            },
           ),
         );
       },

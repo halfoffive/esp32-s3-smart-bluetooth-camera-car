@@ -97,16 +97,18 @@ class _AnimatedFrameState extends State<_AnimatedFrame> {
       scale: _visible ? 1.0 : 0.95,
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeOut,
-      child: AnimatedOpacity(
-        opacity: _visible ? 1.0 : 0.0,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOut,
-        child: Image.memory(
-          widget.bytes,
-          fit: BoxFit.cover,
-          gaplessPlayback: true,
+        child: AnimatedOpacity(
+          opacity: _visible ? 1.0 : 0.0,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+          child: RepaintBoundary(
+            child: Image.memory(
+              widget.bytes,
+              fit: BoxFit.cover,
+              gaplessPlayback: true,
+            ),
+          ),
         ),
-      ),
     );
   }
 }

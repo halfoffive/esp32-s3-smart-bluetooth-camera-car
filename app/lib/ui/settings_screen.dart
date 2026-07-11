@@ -331,33 +331,42 @@ class _FadeInUp extends StatefulWidget {
   State<_FadeInUp> createState() => _FadeInUpState();
 }
 
-class _FadeInUpState extends State<_FadeInUp> {
-  bool _visible = false;
+class _FadeInUpState extends State<_FadeInUp>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _animation;
 
   @override
   void initState() {
     super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 350),
+      vsync: this,
+    );
+    _animation = CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeOutCubic,
+    );
     Future.delayed(Duration(milliseconds: widget.delayMs), () {
-      if (mounted) setState(() => _visible = true);
+      if (mounted) _controller.forward();
     });
   }
 
   @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return AnimatedOpacity(
-      opacity: _visible ? 1.0 : 0.0,
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeOut,
-      child: TweenAnimationBuilder<double>(
-        tween: Tween(begin: 16.0, end: _visible ? 0.0 : 16.0),
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOut,
-        builder: (context, value, child) {
-          return Transform.translate(
-            offset: Offset(0, value),
-            child: child,
-          );
-        },
+    return FadeTransition(
+      opacity: _animation,
+      child: SlideTransition(
+        position: Tween<Offset>(
+          begin: const Offset(0, 12),
+          end: Offset.zero,
+        ).animate(_animation),
         child: widget.child,
       ),
     );
