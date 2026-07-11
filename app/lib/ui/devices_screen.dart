@@ -2,11 +2,13 @@
 //
 // 扫描 / 发现 / 连接 / 断开 BLE 设备。
 // 通过 bleControllerProvider 监听 BleState，按 status 分支渲染：
-//   scanning   → 进度条 + 「扫描中...」提示，扫描按钮显示但禁用
+//   scanning   → 进度条 + 雷达脉冲 + 「扫描中...」提示，扫描按钮显示但禁用
 //   其他       → 「扫描设备」按钮可点
 //   connected  → 设备卡片（名称 + ID + 「断开」）
 //   发现列表   → 逐项 ListTile + 「连接」（扫描中/已连接时禁用）
 //   errorMessage != null → SnackBar 弹出错误（ref.listen，不在 build 内副作用）
+
+import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
@@ -34,6 +36,8 @@ class DeviceConnectionScreen extends ConsumerWidget {
         ? null
         : _findDevice(state.discoveredDevices, state.deviceId!);
 
+    final adapterOff = state.adapterState == BluetoothAdapterState.off;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('设备连接'),
@@ -41,114 +45,135 @@ class DeviceConnectionScreen extends ConsumerWidget {
       ),
       body: Column(
         children: [
-          // ---- 扫描控制区 ----
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton.icon(
-                    onPressed: state.status == ConnectionStatus.scanning
-                        ? null
-                        : () => ref
-                            .read(bleControllerProvider.notifier)
-                            .startScan(),
-                    icon: const Icon(Icons.bluetooth_searching),
-                    label: const Text('扫描设备'),
-                  ),
+          // ---- 蓝牙关闭横幅 ----
+          if (adapterOff)
+            MaterialBanner(
+              content: const Text('蓝牙已关闭，请先开启蓝牙'),
+              actions: [
+                TextButton(
+                  onPressed: () => _handleTurnOn(context),
+                  child: Text(Platform.isAndroid ? '开启蓝牙' : '我知道了'),
                 ),
-                if (state.status == ConnectionStatus.scanning) ...[
-                  const SizedBox(height: 12),
-                  const LinearProgressIndicator(),
-                  const SizedBox(height: 8),
-                  const Text('扫描中...'),
-                ],
               ],
             ),
-          ),
 
-          // ---- 已连接设备卡片 ----
-          if (state.status == ConnectionStatus.connected)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Card(
-                child: Padding(
+          // ---- 主体内容 ----
+          Expanded(
+            child: Column(
+              children: [
+                // ---- 扫描控制区 ----
+                Padding(
                   padding: const EdgeInsets.all(16),
-                  child: Row(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              _displayName(connectedDevice) ?? '已连接设备',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              state.deviceId ?? '',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: cs.onSurfaceVariant,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      OutlinedButton(
+                      _ScanButton(
+                        isScanning: state.status == ConnectionStatus.scanning,
                         onPressed: () => ref
                             .read(bleControllerProvider.notifier)
-                            .disconnect(),
-                        child: const Text('断开'),
+                            .startScan(),
                       ),
+                      if (state.status == ConnectionStatus.scanning) ...[
+                        const SizedBox(height: 24),
+                        const Center(child: _RadarPulse()),
+                        const SizedBox(height: 16),
+                        const LinearProgressIndicator(),
+                        const SizedBox(height: 8),
+                        const Text('扫描中...'),
+                      ],
                     ],
                   ),
                 ),
-              ),
-            ),
 
-          // ---- 设备列表 ----
-          Expanded(
-            child: state.discoveredDevices.isEmpty
-                ? Center(
-                    child: Text(
-                      state.status == ConnectionStatus.scanning
-                          ? '正在搜索设备...'
-                          : '暂无设备，点击上方按钮扫描',
-                      style: TextStyle(color: cs.onSurfaceVariant),
-                    ),
-                  )
-                : ListView.builder(
-                    itemCount: state.discoveredDevices.length,
-                    itemBuilder: (context, index) {
-                      final device = state.discoveredDevices[index];
-                      // 扫描中或已连接时禁用「连接」
-                      final connectDisabled =
-                          state.status == ConnectionStatus.scanning ||
-                              state.status == ConnectionStatus.connected;
-                      return ListTile(
-                        title: Text(_displayName(device) ?? '未知设备'),
-                        subtitle: Text(device.device.remoteId.str),
-                        trailing: FilledButton.tonal(
-                          onPressed: connectDisabled
-                              ? null
-                              : () => ref
-                                  .read(bleControllerProvider.notifier)
-                                  .connect(device),
-                          child: const Text('连接'),
+                // ---- 已连接设备卡片 ----
+                if (state.status == ConnectionStatus.connected)
+                  _SlideInFromTop(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      _displayName(connectedDevice) ?? '已连接设备',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      state.deviceId ?? '',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: cs.onSurfaceVariant,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              OutlinedButton(
+                                onPressed: () => ref
+                                    .read(bleControllerProvider.notifier)
+                                    .disconnect(),
+                                child: const Text('断开'),
+                              ),
+                            ],
+                          ),
                         ),
-                      );
-                    },
+                      ),
+                    ),
                   ),
+
+                // ---- 设备列表 ----
+                Expanded(
+                  child: state.discoveredDevices.isEmpty
+                      ? Center(
+                          child: Text(
+                            state.status == ConnectionStatus.scanning
+                                ? '正在搜索设备...'
+                                : '暂无设备，点击上方按钮扫描',
+                            style: TextStyle(color: cs.onSurfaceVariant),
+                          ),
+                        )
+                      : ListView.builder(
+                          itemCount: state.discoveredDevices.length,
+                          itemBuilder: (context, index) {
+                            final device = state.discoveredDevices[index];
+                            // 扫描中或已连接时禁用「连接」
+                            final connectDisabled =
+                                state.status == ConnectionStatus.scanning ||
+                                    state.status == ConnectionStatus.connected;
+                            return _AnimatedListItem(
+                              index: index,
+                              child: ListTile(
+                                title: Text(_displayName(device) ?? '未知设备'),
+                                subtitle: Text(device.device.remoteId.str),
+                                trailing: FilledButton.tonal(
+                                  onPressed: connectDisabled
+                                      ? null
+                                      : () => ref
+                                          .read(bleControllerProvider.notifier)
+                                          .connect(device),
+                                  child: const Text('连接'),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
     );
   }
+
   /// AppBar 菜单：设置。
   Widget _buildMenu(BuildContext context) {
     return PopupMenuButton<String>(
@@ -175,6 +200,24 @@ class DeviceConnectionScreen extends ConsumerWidget {
   }
 }
 
+/// Android 直接请求打开蓝牙；iOS 等不支持的平台仅给出提示。
+void _handleTurnOn(BuildContext context) async {
+  if (Platform.isAndroid) {
+    try {
+      await FlutterBluePlus.turnOn();
+    } catch (e) {
+      // 用户拒绝或系统错误时静默处理，横幅仍会继续显示
+      debugPrint('[DeviceConnectionScreen] turnOn error: $e');
+    }
+  } else {
+    // iOS / macOS / 桌面端不支持 API 直接开启蓝牙，提示用户去系统设置
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('请在系统设置中开启蓝牙')),
+    );
+  }
+}
+
 /// 在已发现设备列表中按 remoteId 查找扫描结果。
 ScanResult? _findDevice(List<ScanResult> devices, String id) {
   for (final d in devices) {
@@ -189,4 +232,185 @@ String? _displayName(ScanResult? result) {
   return result.advertisementData.advName.isNotEmpty
       ? result.advertisementData.advName
       : result.device.platformName;
+}
+
+/// 带按压缩放反馈的扫描按钮。
+class _ScanButton extends StatefulWidget {
+  final bool isScanning;
+  final VoidCallback onPressed;
+
+  const _ScanButton({required this.isScanning, required this.onPressed});
+
+  @override
+  State<_ScanButton> createState() => _ScanButtonState();
+}
+
+class _ScanButtonState extends State<_ScanButton> {
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    // 用 Listener 而不用 GestureDetector，避免与 FilledButton 内部 InkWell
+    // 在手势竞技场中冲突，导致按压缩放不触发。
+    return Listener(
+      onPointerDown: widget.isScanning
+          ? null
+          : (_) => setState(() => _pressed = true),
+      onPointerUp: widget.isScanning
+          ? null
+          : (_) => setState(() => _pressed = false),
+      onPointerCancel: widget.isScanning
+          ? null
+          : (_) => setState(() => _pressed = false),
+      child: AnimatedScale(
+        scale: _pressed && !widget.isScanning ? 0.96 : 1.0,
+        duration: const Duration(milliseconds: 100),
+        curve: Curves.easeOut,
+        child: SizedBox(
+          width: double.infinity,
+          child: FilledButton.icon(
+            onPressed: widget.isScanning ? null : widget.onPressed,
+            icon: const Icon(Icons.bluetooth_searching),
+            label: const Text('扫描设备'),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 雷达脉冲动画：扫描时三个圆环依次从中心向外扩散并淡出。
+class _RadarPulse extends StatefulWidget {
+  const _RadarPulse();
+
+  @override
+  State<_RadarPulse> createState() => _RadarPulseState();
+}
+
+class _RadarPulseState extends State<_RadarPulse>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1600),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final primary = Theme.of(context).colorScheme.primary;
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        return SizedBox(
+          width: 140,
+          height: 140,
+          child: Stack(
+            alignment: Alignment.center,
+            children: List.generate(3, (i) {
+              final t = (_controller.value + i * 0.25) % 1.0;
+              final size = 40.0 + t * 80.0;
+              return Container(
+                width: size,
+                height: size,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: primary.withValues(alpha: (1 - t) * 0.5),
+                    width: 2,
+                  ),
+                ),
+              );
+            }),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// 列表项进入动画：从下方 16px 淡入上移，支持按 index stagger。
+class _AnimatedListItem extends StatefulWidget {
+  final Widget child;
+  final int index;
+
+  const _AnimatedListItem({required this.child, required this.index});
+
+  @override
+  State<_AnimatedListItem> createState() => _AnimatedListItemState();
+}
+
+class _AnimatedListItemState extends State<_AnimatedListItem> {
+  bool _visible = false;
+
+  @override
+  void initState() {
+    super.initState();
+    Future.delayed(Duration(milliseconds: widget.index * 60), () {
+      if (mounted) setState(() => _visible = true);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedOpacity(
+      opacity: _visible ? 1.0 : 0.0,
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOut,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut,
+        transform: Matrix4.translationValues(0, _visible ? 0 : 16, 0),
+        child: widget.child,
+      ),
+    );
+  }
+}
+
+/// 从顶部滑入并淡入的容器，用于已连接设备卡片。
+class _SlideInFromTop extends StatefulWidget {
+  final Widget child;
+
+  const _SlideInFromTop({required this.child});
+
+  @override
+  State<_SlideInFromTop> createState() => _SlideInFromTopState();
+}
+
+class _SlideInFromTopState extends State<_SlideInFromTop> {
+  bool _visible = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // 当前帧结束后触发 build，产生从 -40px 滑入的动画
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() => _visible = true);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedOpacity(
+      opacity: _visible ? 1.0 : 0.0,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOut,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+        transform: Matrix4.translationValues(0, _visible ? 0 : -40, 0),
+        child: widget.child,
+      ),
+    );
+  }
 }
