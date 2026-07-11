@@ -1,7 +1,7 @@
 // 智能蓝牙摄像头小车遥控 App 入口
 //
 // 导航流程（spec 要求）：
-//   打开应用 -> 设备连接页（扫描/连接）
+//   打开应用 -> 启动屏 -> 设备连接页（扫描/连接）
 //   连接成功 -> 控制页（横屏：摄像头 + 单摇杆）
 //   设置藏在菜单栏（AppBar PopupMenuButton），不占底部导航。
 //
@@ -67,7 +67,7 @@ class SmartCarApp extends ConsumerWidget {
       debugShowCheckedModeBanner: false,
       home: initError != null
           ? _InitErrorScreen(message: initError!)
-          : const _AppRouter(),
+          : const _AppWithSplash(),
       routes: {
         '/settings': (context) => const SettingsScreen(),
       },
@@ -75,7 +75,122 @@ class SmartCarApp extends ConsumerWidget {
   }
 }
 
-/// 顶层路由：按 BLE 连接状态在「设备连接页」与「控制页」之间切换。
+/// 启动屏门控：先展示 [_SplashScreen]，动画结束后进入 [_AppRouter]。
+class _AppWithSplash extends StatefulWidget {
+  const _AppWithSplash();
+
+  @override
+  State<_AppWithSplash> createState() => _AppWithSplashState();
+}
+
+class _AppWithSplashState extends State<_AppWithSplash> {
+  bool _showSplash = true;
+
+  @override
+  Widget build(BuildContext context) {
+    if (_showSplash) {
+      return _SplashScreen(
+        onComplete: () => setState(() => _showSplash = false),
+      );
+    }
+    return const _AppRouter();
+  }
+}
+
+/// 启动屏：带图标缩放、标题淡入与进度条。
+class _SplashScreen extends StatefulWidget {
+  final VoidCallback onComplete;
+  final Duration duration;
+
+  const _SplashScreen({
+    required this.onComplete,
+    this.duration = const Duration(milliseconds: 1200),
+  });
+
+  @override
+  State<_SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<_SplashScreen>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _scale;
+  late final Animation<double> _fade;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: widget.duration,
+    );
+
+    _scale = Tween<double>(begin: 0.8, end: 1.0).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeOutBack),
+    );
+    _fade = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.3, 1.0, curve: Curves.easeOut),
+      ),
+    );
+
+    _controller.addStatusListener((status) {
+      if (status == AnimationStatus.completed) {
+        widget.onComplete();
+      }
+    });
+    _controller.forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    return Scaffold(
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ScaleTransition(
+              scale: _scale,
+              child: Icon(
+                Icons.bluetooth_searching,
+                size: 80,
+                color: colorScheme.primary,
+              ),
+            ),
+            const SizedBox(height: 24),
+            FadeTransition(
+              opacity: _fade,
+              child: Text(
+                '智能小车遥控',
+                style: textTheme.headlineSmall,
+              ),
+            ),
+            const SizedBox(height: 32),
+            FadeTransition(
+              opacity: _fade,
+              child: const SizedBox(
+                width: 160,
+                child: LinearProgressIndicator(),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 顶层路由：按 BLE 连接状态在「设备连接页」与「控制页」之间切换，并带动画转场。
 ///
 /// 错误反馈 SnackBar 监听挂在 root，确保任意子页可见时都能弹出。
 class _AppRouter extends ConsumerStatefulWidget {
@@ -116,10 +231,39 @@ class _AppRouterState extends ConsumerState<_AppRouter> {
   Widget build(BuildContext context) {
     final status = ref.watch(bleControllerProvider.select((s) => s.status));
     // 连接成功才进入控制页；连接中/重连中保留在设备连接页以便观察状态。
-    if (status == ConnectionStatus.connected) {
-      return const ControlScreen();
-    }
-    return const DeviceConnectionScreen();
+    final child = status == ConnectionStatus.connected
+        ? const ControlScreen(key: ValueKey('control'))
+        : const DeviceConnectionScreen(key: ValueKey('device'));
+
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 300),
+      switchInCurve: Curves.easeInOutCubic,
+      switchOutCurve: Curves.easeInOutCubic,
+      transitionBuilder: (child, animation) {
+        final isControl = child.key == const ValueKey('control');
+        final incoming = Tween<Offset>(
+          begin: isControl ? const Offset(1.0, 0.0) : const Offset(-1.0, 0.0),
+          end: Offset.zero,
+        ).animate(animation);
+        return SlideTransition(
+          position: incoming,
+          child: FadeTransition(
+            opacity: animation,
+            child: child,
+          ),
+        );
+      },
+      layoutBuilder: (currentChild, previousChildren) {
+        return Stack(
+          alignment: Alignment.topLeft,
+          children: <Widget>[
+            ...previousChildren,
+            if (currentChild != null) currentChild,
+          ],
+        );
+      },
+      child: child,
+    );
   }
 }
 
