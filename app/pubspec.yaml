@@ -15,6 +15,8 @@ dependencies:
   flutter_rust_bridge: 2.12.0
   # BLE 扫描 / 连接 / GATT 读写（支持 Android / iOS / Linux / macOS / Windows）
   flutter_blue_plus: ^2.3.10
+  # 运行时权限请求（BLE 扫描/连接前必需）
+  permission_handler: ^11.3.1
   # 加速度计（手机体感操控）
   sensors_plus: ^5.0.1
   # 状态管理

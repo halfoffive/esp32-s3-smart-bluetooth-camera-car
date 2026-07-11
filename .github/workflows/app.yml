@@ -304,6 +304,35 @@ jobs:
           PY
           fi
 
+      # 9.5. 注入 Android BLE 运行时权限（仅 APK 需要）：Android 12+ 要求声明
+      #      BLUETOOTH_SCAN / BLUETOOTH_CONNECT，同时保留 FINE_LOCATION 以兼容旧设备。
+      #      android/ 由 flutter create 生成、不在版本控制中，须在 CI 内 patch。
+      - name: Patch Android BLE permissions
+        if: matrix.flutter_target == 'apk'
+        shell: bash
+        run: |
+          MANIFEST="app/android/app/src/main/AndroidManifest.xml"
+          if [ ! -f "$MANIFEST" ]; then
+            echo "ERROR: 未找到 AndroidManifest.xml: $MANIFEST"
+            exit 1
+          fi
+          python3 - "$MANIFEST" <<'PY'
+          import sys
+          path = sys.argv[1]
+          perms = [
+              '    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation" />',
+              '    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />',
+              '    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />',
+          ]
+          with open(path, 'r', encoding='utf-8') as f:
+              text = f.read()
+          # 避免重复注入
+          if 'android.permission.BLUETOOTH_SCAN' not in text:
+              text = text.replace('</manifest>', '\n'.join(perms) + '\n</manifest>')
+          with open(path, 'w', encoding='utf-8') as f:
+              f.write(text)
+          PY
+
       # 10. 生成 Rust ↔ Dart 绑定代码
       - name: Generate flutter_rust_bridge bindings
         run: cd app && flutter_rust_bridge_codegen generate
