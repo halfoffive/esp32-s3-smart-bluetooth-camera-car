@@ -8,7 +8,7 @@
 //   发现列表   → 逐项 ListTile + 「连接」（扫描中/已连接时禁用）
 //   errorMessage != null → SnackBar 弹出错误（ref.listen，不在 build 内副作用）
 
-import 'dart:io' show Platform;
+import 'dart:io' show Platform, Process;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
@@ -37,7 +37,8 @@ class DeviceConnectionScreen extends ConsumerWidget {
         ? null
         : _findDevice(state.discoveredDevices, state.deviceId!);
 
-    final adapterOff = state.adapterState == BluetoothAdapterState.off;
+    final adapterOff = state.adapterState == BluetoothAdapterState.off ||
+        state.adapterState == BluetoothAdapterState.unknown;
 
     return Scaffold(
       appBar: AppBar(
@@ -49,11 +50,21 @@ class DeviceConnectionScreen extends ConsumerWidget {
           // ---- 蓝牙关闭横幅 ----
           if (adapterOff)
             MaterialBanner(
-              content: const Text('蓝牙已关闭，请先开启蓝牙'),
+              content: Text(
+                state.adapterState == BluetoothAdapterState.unknown
+                    ? '蓝牙状态未知，请检查蓝牙是否开启'
+                    : '蓝牙已关闭，请先开启蓝牙',
+              ),
               actions: [
                 TextButton(
                   onPressed: () => _handleTurnOn(context),
-                  child: Text(Platform.isAndroid ? '开启蓝牙' : '我知道了'),
+                  child: Text(
+                    Platform.isAndroid
+                        ? '开启蓝牙'
+                        : Platform.isWindows
+                            ? '打开蓝牙设置'
+                            : '我知道了',
+                  ),
                 ),
               ],
             ),
@@ -201,7 +212,7 @@ class DeviceConnectionScreen extends ConsumerWidget {
   }
 }
 
-/// Android 直接请求打开蓝牙；iOS 等不支持的平台仅给出提示。
+/// Android 直接请求打开蓝牙；Windows 打开系统蓝牙设置；其他平台仅给出提示。
 void _handleTurnOn(BuildContext context) async {
   if (Platform.isAndroid) {
     try {
@@ -210,8 +221,18 @@ void _handleTurnOn(BuildContext context) async {
       // 用户拒绝或系统错误时静默处理，横幅仍会继续显示
       debugPrint('[DeviceConnectionScreen] turnOn error: $e');
     }
+  } else if (Platform.isWindows) {
+    try {
+      await Process.run('cmd', ['/c', 'start', 'ms-settings:bluetooth']);
+    } catch (e) {
+      debugPrint('[DeviceConnectionScreen] open BT settings error: $e');
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('无法打开蓝牙设置，请手动开启')),
+      );
+    }
   } else {
-    // iOS / macOS / 桌面端不支持 API 直接开启蓝牙，提示用户去系统设置
+    // iOS / macOS / Linux 不支持 API 直接开启蓝牙，提示用户去系统设置
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('请在系统设置中开启蓝牙')),

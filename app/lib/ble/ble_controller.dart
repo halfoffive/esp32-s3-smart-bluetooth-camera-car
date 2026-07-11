@@ -123,11 +123,21 @@ class BleController extends StateNotifier<BleState> {
   BleController() : super(const BleState()) {
     debugPrint('[BleController] constructed');
     // 监听系统蓝牙开关状态，用于扫描/连接前拦截并提示用户
-    _adapterSub = FlutterBluePlus.adapterState.listen((adapterState) {
-      _adapterState = adapterState;
-      // 同步到 BleState，让 UI 能响应式地显示/隐藏横幅
-      state = state.copyWith(adapterState: adapterState);
-    });
+    _adapterSub = FlutterBluePlus.adapterState.listen(
+      (adapterState) {
+        _adapterState = adapterState;
+        // 同步到 BleState，让 UI 能响应式地显示/隐藏横幅
+        state = state.copyWith(adapterState: adapterState);
+      },
+      onError: (Object e) {
+        debugPrint('[BleController] adapterState error: $e');
+        _adapterState = BluetoothAdapterState.unknown;
+        state = state.copyWith(
+          adapterState: BluetoothAdapterState.unknown,
+          errorMessage: '蓝牙适配器状态获取失败，请检查蓝牙是否开启',
+        );
+      },
+    );
   }
 
   final FrameStreamAssembler _frameAssembler = FrameStreamAssembler();
@@ -269,10 +279,27 @@ class BleController extends StateNotifier<BleState> {
     );
 
     // 启动扫描（带 5 秒超时，平台自动停止）
-    await FlutterBluePlus.startScan(
-      withServices: const <Guid>[],
-      timeout: const Duration(seconds: 5),
-    );
+    try {
+      await FlutterBluePlus.startScan(
+        withServices: const <Guid>[],
+        timeout: const Duration(seconds: 5),
+      );
+    } catch (e) {
+      debugPrint('[BleController] startScan error: $e');
+      _scanTimer?.cancel();
+      _scanTimer = null;
+      _scanSub?.cancel();
+      _scanSub = null;
+      if (!done.isCompleted) {
+        state = BleState(
+          status: ConnectionStatus.disconnected,
+          errorMessage: '扫描失败: $e',
+          adapterState: state.adapterState,
+        );
+        done.complete();
+      }
+      return;
+    }
 
     // 5 秒后停止扫描并收尾（用 Timer 以便 dispose/重扫时取消，避免回调竞态）
     _scanTimer = Timer(const Duration(seconds: 5), () {
@@ -355,7 +382,13 @@ class BleController extends StateNotifier<BleState> {
       adapterState: state.adapterState,
     );
 
-    _connSub = device.connectionState.listen(_onConnectionStateChange);
+    _connSub = device.connectionState.listen(
+      _onConnectionStateChange,
+      onError: (Object e) {
+        debugPrint('[BleController] connectionState error: $e');
+        _onDisconnected(error: '连接状态监听失败: $e');
+      },
+    );
 
     try {
       await device.connect(
@@ -429,6 +462,9 @@ class BleController extends StateNotifier<BleState> {
           (bytes) {
             _frameAssembler.handlePacket(Uint8List.fromList(bytes));
           },
+          onError: (Object e) {
+            debugPrint('[BleController] image stream error: $e');
+          },
         );
         if (gen != _initGeneration) return;
 
@@ -437,6 +473,9 @@ class BleController extends StateNotifier<BleState> {
         _telemetrySub = _telemetryChar!.onValueReceived.listen(
           (bytes) {
             _telemetryParser.handlePacket(Uint8List.fromList(bytes));
+          },
+          onError: (Object e) {
+            debugPrint('[BleController] telemetry stream error: $e');
           },
         );
         if (gen != _initGeneration) return;
