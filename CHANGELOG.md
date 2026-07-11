@@ -7,6 +7,15 @@
 
 ## [Unreleased]
 
+### Added
+- feat(app): 启动屏与页面转场动画 —— `main.dart` 新增 `_SplashScreen`（蓝牙图标缩放、标题淡入、进度条，默认 1200ms）与 `_AppWithSplash` 门控，启动动画结束后进入 `_AppRouter`；`_AppRouter` 改用 `AnimatedSwitcher` 实现设备连接页/控制页之间的横向滑入+淡入淡出切换（300ms，子页带 `ValueKey` 区分）。设置页改为底部滑入的 `PageRouteBuilder`（新增 `app/lib/ui/settings_route.dart` 公共路由），`devices_screen.dart` 与 `control_screen.dart` 的 AppBar 菜单统一调用 `buildSettingsRoute()` 打开，并移除 `/settings` 命名路由。
+- feat(app): 设备页动效 —— `devices_screen.dart` 扫描时显示 `_RadarPulse` 雷达脉冲动画；已发现设备列表项 stagger 淡入上移（60ms 间隔）；已连接设备卡片从顶部滑入+淡入；「扫描设备」按钮按下时缩放反馈；蓝牙关闭时顶部显示 `MaterialBanner` 提示开启（Android 可调 `FlutterBluePlus.turnOn()`，iOS 引导至系统设置）。
+- feat(app): 控制页 HUD 与画面动效 —— `camera_viewport.dart` 画面首次到达时执行 `scale 0.95→1.0` + `opacity 0→1` 动画；HUD 四角 bracket、连接状态芯片、FPS、速度依次 stagger 淡入（80ms 间隔）。
+- feat(app): 摇杆触摸反馈 —— `joystick.dart` 按下时底圆环描边由 1.5 加粗到 3.0，拇指圆放大 1.08 倍；释放时弹性回中。
+- feat(app): 设置页表单 stagger 与按钮渐变 —— `settings_screen.dart` 外观 / PID / 物理参数 / WiFi 配置四段依次淡入上移（50ms 间隔）；「保存」与「下发到设备」按钮使用 `AnimatedContainer` 包装，启用/禁用状态在 200ms 内渐变背景色与透明度。
+- feat(ble): BLE 权限与适配器状态检查 —— 新增 `app/lib/ble/ble_permissions.dart` 封装平台权限请求（Android `bluetoothScan` / `bluetoothConnect` / `location`，iOS/macOS `bluetooth`，桌面直接 granted）；`BleController` 订阅 `FlutterBluePlus.adapterState` 并在 `startScan()` / `connect()` 前校验蓝牙开关与权限，未就绪时通过 `BleState.errorMessage` 中文提示用户，永久拒绝时引导去系统设置。
+- chore(app): `app/pubspec.yaml` 新增 `permission_handler: ^11.3.1` 依赖；`.github/workflows/app.yml` 的 Android patch 步骤向 `AndroidManifest.xml` 注入 `BLUETOOTH_SCAN`、`BLUETOOTH_CONNECT`、`ACCESS_FINE_LOCATION` 权限声明。
+
 ### Fixed
 - fix(ci/app): 修复 Android APK 启动即报 `Failed to load dynamic library "librust_lib.so": dlopen failed: library "librust_lib.so" not found` —— `app.yml` 的 `build-matrix` job 在 `flutter create .`（重新生成 `android/` 目录）之后缺少 `flutter_rust_bridge_codegen integrate` 步骤，导致 Android Gradle 未注入 CMake + NDK Rust 编译配置，`flutter build apk` 不编译 `rust/` crate，APK 不含 `librust_lib.so`。新增「Integrate flutter_rust_bridge (Android)」步骤（`if: matrix.flutter_target == 'apk'`），在 `flutter create .` 之后、compileSdk patch 之前执行，使 Gradle 通过 `externalNativeBuild` 自动编译 Rust crate 并打包 `lib/<abi>/librust_lib.so` 进 APK。桌面平台沿用既有手动 `cargo build` + copy 步骤，不受影响。
 - fix(app/rust): 修复 `flutter_rust_bridge_codegen integrate` 导致的 E0761 重复模块错误 —— `integrate` 以模板覆盖方式注入 `rust_builder/` 时会创建 `src/api/mod.rs`，与既有平铺 `src/api.rs` 并存触发 `file for module 'api' found at both`。将 `src/api.rs` 迁移为目录式 `src/api/mod.rs`，使 `integrate` 检测到文件已存在而跳过；同时在 CI 步骤中清理模板演示文件 `src/api/simple.rs` 与 `lib/src/rust/api/simple.dart`。
