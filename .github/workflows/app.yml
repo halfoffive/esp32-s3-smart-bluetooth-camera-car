@@ -362,10 +362,10 @@ jobs:
       - name: Download OpenHarmony SDK
         run: |
           mkdir -p "$HOME/ohos-sdk"
-          # 尝试 OpenHarmony 4.0 Release（API 10）官方公开镜像；URL 失败则继续，由后续步骤报错
+          # 尝试 OpenHarmony SDK 官方公开镜像（华为云）；URL 失败则继续，由后续步骤报错
           for SDK_URL in \
-            "https://repo.huaweicloud.com/openharmony/os/4.0-Release/ohos-sdk-linux.tar.gz" \
-            "https://repo.harmonyos.com/os/ohos-sdk/5.0.0-Release/ohos-sdk-linux.tar.gz"; do
+            "https://repo.huaweicloud.com/openharmony/os/5.0.0-Release/ohos-sdk-windows_linux-public.tar.gz" \
+            "https://repo.huaweicloud.com/openharmony/os/4.0-Release/ohos-sdk-windows_linux-public.tar.gz"; do
             echo "Trying: $SDK_URL"
             if curl -fSL -o /tmp/ohos-sdk.tar.gz "$SDK_URL" 2>&1; then
               echo "Downloaded from: $SDK_URL"
