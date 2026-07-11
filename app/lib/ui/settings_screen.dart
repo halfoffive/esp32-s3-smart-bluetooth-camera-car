@@ -136,7 +136,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final tt = Theme.of(context).textTheme;
     final connected =
         ref.watch(bleControllerProvider).status == ConnectionStatus.connected;
     return Scaffold(
@@ -147,107 +146,131 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               padding: const EdgeInsets.all(16),
               children: [
                 // 外观段
-                _sectionTitle('外观'),
-                const ListTile(
-                  leading: Icon(Icons.brightness_6_outlined),
-                  title: Text('主题模式'),
-                  subtitle: Text('默认跟随系统'),
-                ),
-                const SizedBox(height: 8),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: SegmentedButton<ThemeMode>(
-                    segments: const [
-                      ButtonSegment(
-                          value: ThemeMode.system, label: Text('系统')),
-                      ButtonSegment(
-                          value: ThemeMode.light, label: Text('浅色')),
-                      ButtonSegment(
-                          value: ThemeMode.dark, label: Text('深色')),
-                    ],
-                    selected: {ref.watch(themeModeProvider)},
-                    onSelectionChanged: (selection) {
-                      ref.read(themeModeProvider.notifier).set(selection.first);
-                    },
-                  ),
-                ),
-                const Divider(height: 32),
-                // PID + 物理参数段
-                Form(
-                  key: _formKey,
+                _FadeInUp(
+                  delayMs: 0,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      _sectionTitle('PID 系数'),
-                      _numField('Kp', _kpCtrl),
-                      _numField('Ki', _kiCtrl),
-                      _numField('Kd', _kdCtrl),
-                      const Divider(height: 32),
-                      _sectionTitle('物理参数'),
-                      _numField('T_ramp (s)', _tRampCtrl),
-                      _numField('轮径 (mm)', _wheelDiameterCtrl),
-                      _numField('轮距 (mm)', _wheelBaseCtrl),
-                      _numField('编码器槽数', _encoderSlotsCtrl, integer: true),
-                      const SizedBox(height: 24),
-                      FilledButton.icon(
-                        onPressed: connected ? _save : null,
-                        icon: const Icon(Icons.save_outlined),
-                        label: const Text('保存'),
-                        style: FilledButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 14),
+                      _sectionTitle('外观'),
+                      const ListTile(
+                        leading: Icon(Icons.brightness_6_outlined),
+                        title: Text('主题模式'),
+                        subtitle: Text('默认跟随系统'),
+                      ),
+                      const SizedBox(height: 8),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        child: SegmentedButton<ThemeMode>(
+                          segments: const [
+                            ButtonSegment(
+                                value: ThemeMode.system, label: Text('系统')),
+                            ButtonSegment(
+                                value: ThemeMode.light, label: Text('浅色')),
+                            ButtonSegment(
+                                value: ThemeMode.dark, label: Text('深色')),
+                          ],
+                          selected: {ref.watch(themeModeProvider)},
+                          onSelectionChanged: (selection) {
+                            ref
+                                .read(themeModeProvider.notifier)
+                                .set(selection.first);
+                          },
                         ),
                       ),
-                      if (!connected) ...[
-                        const SizedBox(height: 8),
-                        Text(
-                          '请先连接设备',
-                          style: TextStyle(color: cs.onSurfaceVariant),
+                      const Divider(height: 32),
+                    ],
+                  ),
+                ),
+                // PID 系数段
+                _FadeInUp(
+                  delayMs: 50,
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _sectionTitle('PID 系数'),
+                        _numField('Kp', _kpCtrl),
+                        _numField('Ki', _kiCtrl),
+                        _numField('Kd', _kdCtrl),
+                        const Divider(height: 32),
+                        // 物理参数段
+                        _FadeInUp(
+                          delayMs: 100,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              _sectionTitle('物理参数'),
+                              _numField('T_ramp (s)', _tRampCtrl),
+                              _numField('轮径 (mm)', _wheelDiameterCtrl),
+                              _numField('轮距 (mm)', _wheelBaseCtrl),
+                              _numField('编码器槽数', _encoderSlotsCtrl,
+                                  integer: true),
+                              const SizedBox(height: 24),
+                              _AnimatedActionButton(
+                                label: '保存',
+                                icon: Icons.save_outlined,
+                                onPressed: _save,
+                                enabled: connected,
+                              ),
+                              if (!connected) ...[
+                                const SizedBox(height: 8),
+                                Text(
+                                  '请先连接设备',
+                                  style:
+                                      TextStyle(color: cs.onSurfaceVariant),
+                                ),
+                              ],
+                            ],
+                          ),
                         ),
                       ],
-                    ],
+                    ),
                   ),
                 ),
                 const Divider(height: 32),
                 // WiFi 配置段
-                Form(
-                  key: _wifiFormKey,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text('WiFi 配置', style: tt.titleMedium),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: _ssidCtrl,
-                        decoration: const InputDecoration(labelText: 'SSID'),
-                        maxLength: 32,
-                        validator: (v) =>
-                            (v == null || v.trim().isEmpty) ? '不能为空' : null,
-                      ),
-                      TextFormField(
-                        controller: _passwordCtrl,
-                        decoration: const InputDecoration(labelText: '密码'),
-                        obscureText: true,
-                        maxLength: 64,
-                        validator: (v) =>
-                            (v == null || v.isEmpty) ? '不能为空' : null,
-                      ),
-                      const SizedBox(height: 24),
-                      FilledButton.icon(
-                        onPressed: connected ? _sendWifi : null,
-                        icon: const Icon(Icons.wifi),
-                        label: const Text('下发到设备'),
-                        style: FilledButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 14),
+                _FadeInUp(
+                  delayMs: 150,
+                  child: Form(
+                    key: _wifiFormKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text('WiFi 配置',
+                            style: Theme.of(context).textTheme.titleMedium),
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: _ssidCtrl,
+                          decoration: const InputDecoration(labelText: 'SSID'),
+                          maxLength: 32,
+                          validator: (v) =>
+                              (v == null || v.trim().isEmpty) ? '不能为空' : null,
                         ),
-                      ),
-                      if (!connected) ...[
-                        const SizedBox(height: 8),
-                        Text(
-                          '请先连接设备',
-                          style: TextStyle(color: cs.onSurfaceVariant),
+                        TextFormField(
+                          controller: _passwordCtrl,
+                          decoration: const InputDecoration(labelText: '密码'),
+                          obscureText: true,
+                          maxLength: 64,
+                          validator: (v) =>
+                              (v == null || v.isEmpty) ? '不能为空' : null,
                         ),
+                        const SizedBox(height: 24),
+                        _AnimatedActionButton(
+                          label: '下发到设备',
+                          icon: Icons.wifi,
+                          onPressed: _sendWifi,
+                          enabled: connected,
+                        ),
+                        if (!connected) ...[
+                          const SizedBox(height: 8),
+                          Text(
+                            '请先连接设备',
+                            style: TextStyle(color: cs.onSurfaceVariant),
+                          ),
+                        ],
                       ],
-                    ],
+                    ),
                   ),
                 ),
               ],
@@ -278,8 +301,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       padding: const EdgeInsets.only(bottom: 12),
       child: TextFormField(
         controller: ctrl,
-        keyboardType:
-            integer ? TextInputType.number : const TextInputType.numberWithOptions(decimal: true),
+        keyboardType: integer
+            ? TextInputType.number
+            : const TextInputType.numberWithOptions(decimal: true),
         decoration: InputDecoration(labelText: label),
         style: AppTheme.mono(size: 14),
         validator: (v) {
@@ -291,6 +315,93 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           }
           return null;
         },
+      ),
+    );
+  }
+}
+
+/// 带延迟的淡入上移动画。
+class _FadeInUp extends StatefulWidget {
+  const _FadeInUp({required this.delayMs, required this.child});
+
+  final int delayMs;
+  final Widget child;
+
+  @override
+  State<_FadeInUp> createState() => _FadeInUpState();
+}
+
+class _FadeInUpState extends State<_FadeInUp> {
+  bool _visible = false;
+
+  @override
+  void initState() {
+    super.initState();
+    Future.delayed(Duration(milliseconds: widget.delayMs), () {
+      if (mounted) setState(() => _visible = true);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedOpacity(
+      opacity: _visible ? 1.0 : 0.0,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOut,
+      child: TweenAnimationBuilder<double>(
+        tween: Tween(begin: 16.0, end: _visible ? 0.0 : 16.0),
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+        builder: (context, value, child) {
+          return Transform.translate(
+            offset: Offset(0, value),
+            child: child,
+          );
+        },
+        child: widget.child,
+      ),
+    );
+  }
+}
+
+/// 启用/禁用状态带渐变过渡的操作按钮。
+class _AnimatedActionButton extends StatelessWidget {
+  const _AnimatedActionButton({
+    required this.label,
+    required this.icon,
+    required this.onPressed,
+    required this.enabled,
+  });
+
+  final String label;
+  final IconData icon;
+  final VoidCallback? onPressed;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return AnimatedOpacity(
+      opacity: enabled ? 1.0 : 0.62,
+      duration: const Duration(milliseconds: 200),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        decoration: BoxDecoration(
+          color: enabled
+              ? cs.primary
+              : cs.onSurface.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(100),
+        ),
+        child: FilledButton.icon(
+          onPressed: enabled ? onPressed : null,
+          icon: Icon(icon),
+          label: Text(label),
+          style: FilledButton.styleFrom(
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            backgroundColor: Colors.transparent,
+            disabledBackgroundColor: Colors.transparent,
+          ),
+        ),
       ),
     );
   }

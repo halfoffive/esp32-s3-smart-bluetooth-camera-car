@@ -15,7 +15,7 @@ import 'ble/ble_controller.dart';
 import 'src/rust/frb_generated.dart';
 import 'ui/control_screen.dart';
 import 'ui/devices_screen.dart';
-import 'ui/settings_screen.dart';
+import 'ui/settings_route.dart';
 import 'ui/theme.dart';
 import 'ui/theme_mode_controller.dart';
 
@@ -68,9 +68,6 @@ class SmartCarApp extends ConsumerWidget {
       home: initError != null
           ? _InitErrorScreen(message: initError!)
           : const _AppWithSplash(),
-      routes: {
-        '/settings': (context) => const SettingsScreen(),
-      },
     );
   }
 }

@@ -15,6 +15,7 @@ import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../ble/ble_controller.dart';
+import 'settings_route.dart';
 
 /// 设备连接页（应用入口）：扫描、连接、断开 BLE 设备。
 ///
@@ -181,7 +182,7 @@ class DeviceConnectionScreen extends ConsumerWidget {
       tooltip: '菜单',
       onSelected: (value) {
         if (value == 'settings') {
-          Navigator.pushNamed(context, '/settings');
+          Navigator.push(context, buildSettingsRoute());
         }
       },
       itemBuilder: (context) => const [

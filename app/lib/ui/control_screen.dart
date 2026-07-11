@@ -12,6 +12,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../ble/ble_controller.dart';
+import 'settings_route.dart';
 import 'camera_viewport.dart';
 import 'control_panel.dart';
 import 'telemetry_panel.dart';
@@ -78,9 +79,11 @@ class _ControlScreenState extends ConsumerState<ControlScreen> {
       onSelected: (item) {
         switch (item) {
           case _MenuItem.settings:
-            Navigator.pushNamed(context, '/settings');
+            Navigator.push(context, buildSettingsRoute());
+            break;
           case _MenuItem.disconnect:
             ref.read(bleControllerProvider.notifier).disconnect();
+            break;
         }
       },
       itemBuilder: (context) => const [
