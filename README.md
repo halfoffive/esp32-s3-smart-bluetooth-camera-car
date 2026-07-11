@@ -88,13 +88,6 @@ flutter build windows --release    # Windows
 flutter build macos --release      # macOS
 ```
 
-HarmonyOS HAP 构建需使用 [flutter_flutter](https://gitcode.com/CPF-Flutter/flutter_flutter) SDK fork（OpenHarmony 适配版），并预装 JDK 17 + OpenHarmony SDK + hvigor/ohpm；CI 的 `build-hap` job 已配齐此工具链（实验性，允许失败）。本地构建命令：
-
-```bash
-# 需先 clone flutter_flutter fork 并加入 PATH
-cd app && flutter build hap --release    # HarmonyOS（unsigned）
-```
-
 ### Rust 文档
 ```bash
 cd app/rust

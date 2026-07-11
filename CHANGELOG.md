@@ -15,6 +15,7 @@
 
 ### Removed
 - refactor(app): control_panel.dart 不再引用 input/tilt_controller.dart / input/keyboard_controller.dart（文件保留待后续 spec 扩展）；main.dart 移除 HomeScreen / _DriveTab / IndexedStack / NavigationBar 相关代码。
+- ci(app): 全面弃用 HarmonyOS HAP 构建 —— 移除 `.github/workflows/app.yml` 的 `build-hap` job 及 `release` job 的 `needs` / `files` 中所有 HAP 引用。鸿蒙工具链（flutter_flutter SDK fork / OpenHarmony SDK / hvigor / ohpm）长期不稳定，已移除。如未来需要鸿蒙支持，建议用华为官方 DevEco Studio CLI 而非 gitcode fork。
 
 ### Added
 - ci(app): `app.yml` 新增实验性 `build-hap` job —— 使用 `gitcode.com/CPF-Flutter/flutter_flutter` SDK fork 构建 HarmonyOS unsigned HAP 包：JDK 17 + OpenHarmony SDK + hvigor/ohpm（npm `@ohos:registry`）+ `flutter create --platforms=ohos` + `flutter build hap --release`；用 `continue-on-error: true` 标注，失败不阻塞 release；release job 的 `needs` 加 `build-hap`，`files` 列表加 `artifacts/app-hap/*`。
@@ -39,6 +40,8 @@
 - feat(app): `settings_screen.dart` `_numField` 改为 M3 默认 outline —— 删除 `filled: true` / `fillColor` / 自定义 `border`，沿用 M3 `TextFormField` 默认 outline 外观。
 - feat(app): `HomeScreen` 重构为 `Scaffold` + `NavigationBar` + `IndexedStack`，移除 `/settings` 命名路由与 AppBar 设置 IconButton；导航由底部 tab 完成，设置入口统一收口到「设置」tab。
 - feat(firmware): PID / 物理参数从 `config.h` 编译期宏改为运行时 `static volatile` 变量 + NVS 加载，首次启动行为与原版一致（无 NVS 时回退宏默认），运行时可通过 BLE `CMD_SET_PARAMS` 修改并持久化。
+- ci(app): `cargo install` → `cargo-binstall --no-confirm`（cargo-expand / flutter_rust_bridge_codegen / cargo-ndk），CI 先 curl 安装 cargo-binstall 本体，工具链安装从源码编译（~3-5 分钟）降到预编译二进制下载（~30 秒）。
+- ci(app): `flutter_rust_bridge_codegen generate` 命令加 `--config flutter_rust_bridge.yaml` 显式指定配置文件路径，防御 codegen 版本升级改变默认搜索行为。
 
 ### Fixed
 - fix(app): 消除 `prefer_const_constructors` lint 警告 -- `ble_controller.dart` 的 `BleState(...)`、`tilt_controller.dart` 的 `ControlCommand(...)`、`main.dart` `_DriveTab` 的 `Scaffold/SafeArea/Column` 嵌套构造、`settings_screen.dart` 的 `ListTile(...)` 均改为 `const` 构造，提升性能。`frb_generated.dart` 两处同类警告属生成代码（gitignored），不手改。
@@ -86,6 +89,8 @@
 - fix(ci): 升级 `actions/checkout`/`cache`/`upload-artifact`/`download-artifact` 至 `@v7`/`@v6`/`@v7`/`@v8`，`setup-python` 至 `@v6`（Node 24 运行时），修复 GitHub Actions 自 2025-09-19 弃用 Node 20 产生的 `Node.js 20 is deprecated` 警告（`app.yml` 与 `firmware.yml` 全量替换）。
 - fix(app/rust): 在 `Cargo.toml` 新增 `[lints.rust]` 段声明 `frb_expand` 为已知 cfg（`unexpected_cfgs = { level = "deny", check-cfg = ['cfg(frb_expand)'] }`），修复 `#[frb(sync)]`/`#[frb(opaque)]` 属性宏内部展开 `cfg(frb_expand)` 触发 `unexpected_cfgs` 导致 `cargo clippy -D warnings` 失败。
 - fix(app/rust): 修复 clippy 风格警告 —— `control.rs` `encode_control` 两处边界判断改 `!(-1..=1).contains(&x)`（`manual_range_contains`）；`image.rs` 分片拼接循环改 `self.received.drain(..).flatten()`（`manual_flatten`）。
+- fix(ci/app): 修复桌面端产物启动崩溃（`Failed to load dynamic library 'rust_lib.dll': The specified module could not be found. (error code: 126)`）—— frb v2 不自动编译 Rust cdylib，CI 在 `flutter build <platform> --release` 后显式 `cargo build --release` 并复制共享库到产物目录（Windows `rust_lib.dll` / Linux `librust_lib.so` / macOS `librust_lib.dylib`）。
+- fix(ci/app): 修复 Android APK 缺失 `librust_lib.so` —— 用 `cargo-ndk` 为 `arm64-v8a` 编译 Rust cdylib 并输出到 `android/app/src/main/jniLibs/`，`flutter build apk` 将其打包进 APK。
 
 ## [0.1.0] - 2026-07-04
 ### Added
