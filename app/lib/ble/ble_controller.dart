@@ -4,7 +4,7 @@
 // 状态机节点见 [ConnectionStatus]，状态迁移见文件末尾注释。
 //
 // 依赖：
-//   - flutter_reactive_ble ^5.3.1（BLE 扫描/连接/GATT 读写）
+//   - flutter_blue_plus ^2.3.10（BLE 扫描/连接/GATT 读写，支持桌面端）
 //   - flutter_riverpod ^2.5.1（StateNotifier 状态管理）
 //   - flutter_rust_bridge codegen 产物（encode_control 控制指令编码）
 //
@@ -14,9 +14,10 @@
 // ignore_for_file: depend_on_referenced_packages
 
 import 'dart:async';
+import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter_reactive_ble/flutter_reactive_ble.dart';
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // frb codegen 绑定
@@ -55,7 +56,7 @@ class BleState {
   final ConnectionStatus status;
   final String? deviceId;
   final String? errorMessage;
-  final List<DiscoveredDevice> discoveredDevices;
+  final List<ScanResult> discoveredDevices;
 
   const BleState({
     this.status = ConnectionStatus.disconnected,
@@ -69,7 +70,7 @@ class BleState {
     ConnectionStatus? status,
     Object? deviceId = _unset,
     Object? errorMessage = _unset,
-    List<DiscoveredDevice>? discoveredDevices,
+    List<ScanResult>? discoveredDevices,
   }) {
     return BleState(
       status: status ?? this.status,
@@ -110,7 +111,7 @@ final telemetryStreamProvider = StreamProvider<Telemetry>((ref) {
 
 /// BLE 连接层控制器：封装扫描、连接、特征订阅、控制指令、自动重连。
 ///
-/// 内部维护一个 [FlutterReactiveBle] 实例与若干流订阅；
+/// 内部通过 [FlutterBluePlus] 静态门面与远程设备交互；
 /// 图像/遥测包分别由 [FrameStreamAssembler] / [TelemetryParser] 解析后
 /// 通过广播 StreamController 输出，UI 侧经 StreamProvider 订阅。
 class BleController extends StateNotifier<BleState> {
@@ -118,22 +119,36 @@ class BleController extends StateNotifier<BleState> {
     debugPrint('[BleController] constructed');
   }
 
-  final FlutterReactiveBle _ble = FlutterReactiveBle();
   final FrameStreamAssembler _frameAssembler = FrameStreamAssembler();
   final TelemetryParser _telemetryParser = TelemetryParser();
 
+  // GATT UUID 常量（Guid 构造一次复用）
+  static final Guid _serviceGuid = Guid(CarDeviceConstants.serviceUuid);
+  static final Guid _imageGuid =
+      Guid(CarDeviceConstants.imageCharacteristicUuid);
+  static final Guid _controlGuid =
+      Guid(CarDeviceConstants.controlCharacteristicUuid);
+  static final Guid _telemetryGuid =
+      Guid(CarDeviceConstants.telemetryCharacteristicUuid);
+
   // ---- 流订阅 ----
-  StreamSubscription<DiscoveredDevice>? _scanSub;
+  StreamSubscription<List<ScanResult>>? _scanSub;
   Timer? _scanTimer; // 扫描超时定时器（可取消，避免 dispose 后回调竞态）
-  StreamSubscription<ConnectionStateUpdate>? _connSub;
+  StreamSubscription<BluetoothConnectionState>? _connSub;
   StreamSubscription<List<int>>? _imageSub;
   StreamSubscription<List<int>>? _telemetrySub;
+
+  // ---- GATT 句柄（连接成功后由 discoverServices 填充）----
+  BluetoothDevice? _device;
+  BluetoothCharacteristic? _imageChar;
+  BluetoothCharacteristic? _telemetryChar;
+  BluetoothCharacteristic? _controlChar;
 
   // ---- 重连状态 ----
   bool _userDisconnect = false; // 用户主动断开标志
   int _reconnectAttempts = 0; // 已尝试重连次数
   Timer? _reconnectTimer;
-  String? _lastDeviceId; // 重连目标
+  String? _lastDeviceId; // 重连目标（remoteId 字符串）
   bool _initializing = false; // _onConnected 重入保护（connected 事件可能重复触发）
   int _initGeneration = 0; // _onConnected 代际计数器：旧 finally 不破坏新 _onConnected 的保护
 
@@ -176,15 +191,21 @@ class BleController extends StateNotifier<BleState> {
 
     state = const BleState(status: ConnectionStatus.scanning);
 
-    final found = <DiscoveredDevice>[];
+    final found = <ScanResult>[];
     final done = Completer<void>();
 
-    _scanSub = _ble.scanForDevices(withServices: const []).listen(
-      (device) {
-        if (device.name == CarDeviceConstants.deviceName &&
-            !found.any((d) => d.id == device.id)) {
-          found.add(device);
-          state = state.copyWith(discoveredDevices: List.of(found));
+    _scanSub = FlutterBluePlus.onScanResults.listen(
+      (results) {
+        for (final result in results) {
+          // 优先使用广播名，回退到系统缓存名
+          final name = result.advertisementData.advName.isNotEmpty
+              ? result.advertisementData.advName
+              : result.device.platformName;
+          if (name == CarDeviceConstants.deviceName &&
+              !found.any((r) => r.device.remoteId == result.device.remoteId)) {
+            found.add(result);
+            state = state.copyWith(discoveredDevices: List.of(found));
+          }
         }
       },
       onError: (Object e) {
@@ -200,6 +221,12 @@ class BleController extends StateNotifier<BleState> {
           done.complete();
         }
       },
+    );
+
+    // 启动扫描（带 5 秒超时，平台自动停止）
+    await FlutterBluePlus.startScan(
+      withServices: const <Guid>[],
+      timeout: const Duration(seconds: 5),
     );
 
     // 5 秒后停止扫描并收尾（用 Timer 以便 dispose/重扫时取消，避免回调竞态）
@@ -234,9 +261,10 @@ class BleController extends StateNotifier<BleState> {
 
   /* ---- 连接 ---- */
 
-  /// 连接指定设备：建立连接 → 协商 MTU 512 → 订阅 image/telemetry 特征 → 写控制占位。
-  Future<void> connect(DiscoveredDevice device) async {
-    debugPrint('[BleController] connect: ${device.id}');
+  /// 连接指定设备：建立连接 → 协商 MTU 512（Android） → 订阅 image/telemetry 特征 → 写控制占位。
+  Future<void> connect(ScanResult result) async {
+    final device = result.device;
+    debugPrint('[BleController] connect: ${device.remoteId}');
     _userDisconnect = false;
     _reconnectAttempts = 0;
     _reconnectTimer?.cancel();
@@ -248,42 +276,44 @@ class BleController extends StateNotifier<BleState> {
     _initializing = false;
     ++_initGeneration;
 
-    _lastDeviceId = device.id;
+    _device = device;
+    _lastDeviceId = device.remoteId.str;
     state = BleState(
       status: ConnectionStatus.connecting,
-      deviceId: device.id,
+      deviceId: device.remoteId.str,
     );
 
-    _connSub = _ble.connectToDevice(id: device.id).listen(
-      _onConnectionStateChange,
-      onError: (Object e) {
-        debugPrint('[BleController] connect stream error: $e');
-        // 连接流异常：触发断开处理（含自动重连）
-        _onDisconnected(error: '连接错误: $e');
-      },
-    );
+    _connSub = device.connectionState.listen(_onConnectionStateChange);
+
+    try {
+      await device.connect(
+        license: License.nonprofit,
+        timeout: const Duration(seconds: 15),
+      );
+    } catch (e) {
+      debugPrint('[BleController] connect error: $e');
+      // 连接失败：触发断开处理（含自动重连）
+      _onDisconnected(error: '连接错误: $e');
+    }
   }
 
   /// 连接状态变化回调。
-  void _onConnectionStateChange(ConnectionStateUpdate update) {
-    debugPrint('[BleController] conn state: ${update.connectionState}');
-    switch (update.connectionState) {
-      case DeviceConnectionState.connected:
+  ///
+  /// flutter_blue_plus 的 [BluetoothConnectionState] 仅区分 connected / disconnected
+  /// 两种稳态；connecting / disconnecting 由 [BleState.status] 自行维护。
+  void _onConnectionStateChange(BluetoothConnectionState state) {
+    debugPrint('[BleController] conn state: $state');
+    switch (state) {
+      case BluetoothConnectionState.connected:
         _onConnected();
         break;
-      case DeviceConnectionState.connecting:
-        // 已在 connect() 中置 connecting，无需重复
-        break;
-      case DeviceConnectionState.disconnecting:
-        // 中间态，等待 disconnected
-        break;
-      case DeviceConnectionState.disconnected:
+      case BluetoothConnectionState.disconnected:
         _onDisconnected();
         break;
     }
   }
 
-  /// 连接成功后：协商 MTU、订阅特征、写控制占位。
+  /// 连接成功后：发现服务、协商 MTU、订阅特征、写控制占位。
   Future<void> _onConnected() async {
     debugPrint('[BleController] _onConnected');
     // 重入保护：connected 事件可能重复触发，避免并发初始化破坏订阅
@@ -291,56 +321,55 @@ class BleController extends StateNotifier<BleState> {
     _initializing = true;
     final gen = ++_initGeneration;
     try {
-      final deviceId = state.deviceId ?? _lastDeviceId;
-      if (deviceId == null) {
-        _onDisconnected(error: '内部错误: deviceId 为空');
+      final device = _device;
+      if (device == null) {
+        _onDisconnected(error: '内部错误: device 为空');
         return;
       }
 
       try {
-        // 1) 协商 MTU 512（与固件 BLE_MTU_SIZE 一致）
-        await _ble.requestMtu(
-          deviceId: deviceId,
-          mtu: CarDeviceConstants.negotiatedMtu,
-        );
-        // 旧代际恢复：requestMtu 后若 generation 已变，不再继续后续订阅，
-        // 避免覆盖新 _onConnected 的特征订阅。
+        // 1) 协商 MTU 512（与固件 BLE_MTU_SIZE 一致；仅 Android 支持显式请求）
+        if (Platform.isAndroid) {
+          await device.requestMtu(CarDeviceConstants.negotiatedMtu);
+          // 旧代际恢复：requestMtu 后若 generation 已变，不再继续后续订阅，
+          // 避免覆盖新 _onConnected 的特征订阅。
+          if (gen != _initGeneration) return;
+        }
+
+        // 2) 发现服务并缓存三个特征
+        final services = await device.discoverServices();
         if (gen != _initGeneration) return;
 
-        // 2) 订阅图像与遥测特征
-        final imageChar = _qualifiedChar(
-          deviceId,
-          CarDeviceConstants.imageCharacteristicUuid,
-        );
-        final telemetryChar = _qualifiedChar(
-          deviceId,
-          CarDeviceConstants.telemetryCharacteristicUuid,
-        );
+        _imageChar = _lookupCharacteristic(services, _imageGuid);
+        _telemetryChar = _lookupCharacteristic(services, _telemetryGuid);
+        _controlChar = _lookupCharacteristic(services, _controlGuid);
+        if (_imageChar == null ||
+            _telemetryChar == null ||
+            _controlChar == null) {
+          _onDisconnected(error: '未找到 GATT 特征');
+          return;
+        }
 
-        _imageSub = _ble.subscribeToCharacteristic(imageChar).listen(
+        // 3) 订阅图像与遥测特征
+        await _imageChar!.setNotifyValue(true);
+        if (gen != _initGeneration) return;
+        _imageSub = _imageChar!.onValueReceived.listen(
           (bytes) {
             _frameAssembler.handlePacket(Uint8List.fromList(bytes));
           },
-          onError: (e) {
-            debugPrint('[BleController] image stream error: $e');
-            state = state.copyWith(errorMessage: '特征订阅错误: $e');
-          },
         );
-        // 旧代际恢复：image 订阅后若 generation 已变，不覆盖新订阅。
         if (gen != _initGeneration) return;
-        _telemetrySub = _ble.subscribeToCharacteristic(telemetryChar).listen(
+
+        await _telemetryChar!.setNotifyValue(true);
+        if (gen != _initGeneration) return;
+        _telemetrySub = _telemetryChar!.onValueReceived.listen(
           (bytes) {
             _telemetryParser.handlePacket(Uint8List.fromList(bytes));
           },
-          onError: (e) {
-            debugPrint('[BleController] telemetry stream error: $e');
-            state = state.copyWith(errorMessage: '特征订阅错误: $e');
-          },
         );
-        // 旧代际恢复：telemetry 订阅后若 generation 已变，不修改状态。
         if (gen != _initGeneration) return;
 
-        // 3) 先置 connected 状态：sendControl 内部校验 status==connected,
+        // 4) 先置 connected 状态：sendControl 内部校验 status==connected,
         //    顺序颠倒会导致占位指令被静默丢弃。
         //    同时取消可能残留的 _reconnectTimer，避免健康连接被自残式重连打断。
         _reconnectTimer?.cancel();
@@ -351,20 +380,17 @@ class BleController extends StateNotifier<BleState> {
           errorMessage: null, // 清除旧错误
         );
 
-        // 4) 写入控制特征占位（零速停机），确认 WRITE 通道可用
+        // 5) 写入控制特征占位（零速停机），确认 WRITE 通道可用
         //    直接调用底层写入：sendControl 内部 catch 会吞错，
         //    导致 WRITE 通道失败时 UI 仍假性显示已连接
         try {
-          await _ble.writeCharacteristicWithResponse(
-            _qualifiedChar(
-              deviceId,
-              CarDeviceConstants.controlCharacteristicUuid,
-            ),
-            value: await control_rust.encodeControl(
+          await _controlChar!.write(
+            await control_rust.encodeControl(
               direction: 0,
               turn: 0,
               speedPct: 0,
             ),
+            withoutResponse: false,
           );
           // 旧代际恢复：占位写入后若 generation 已变，不执行后续副作用。
           if (gen != _initGeneration) return;
@@ -388,6 +414,21 @@ class BleController extends StateNotifier<BleState> {
       // 恢复后 generation 不匹配，不会破坏新 _onConnected 已设的 _initializing=true。
       if (gen == _initGeneration) _initializing = false;
     }
+  }
+
+  /// 从已发现服务中查找目标特征。
+  BluetoothCharacteristic? _lookupCharacteristic(
+    List<BluetoothService> services,
+    Guid charUuid,
+  ) {
+    for (final service in services) {
+      if (service.uuid == _serviceGuid) {
+        for (final c in service.characteristics) {
+          if (c.uuid == charUuid) return c;
+        }
+      }
+    }
+    return null;
   }
 
   /// 连接断开回调：用户主动断开则不重连；异常断开则启动自动重连。
@@ -436,7 +477,7 @@ class BleController extends StateNotifier<BleState> {
     _reconnectTimer = Timer(delay, _attemptReconnect);
   }
 
-  /// 单次重连尝试：重新建立连接流。
+  /// 单次重连尝试：重新建立连接。
   void _attemptReconnect() {
     final id = _lastDeviceId;
     if (id == null || _userDisconnect) return;
@@ -453,10 +494,19 @@ class BleController extends StateNotifier<BleState> {
     state = state.copyWith(status: ConnectionStatus.connecting);
 
     _connSub?.cancel();
-    _connSub = _ble.connectToDevice(id: id).listen(
-      _onConnectionStateChange,
-      onError: (Object e) => _onDisconnected(error: '重连错误: $e'),
-    );
+    final device = BluetoothDevice.fromId(id);
+    _device = device;
+    _connSub = device.connectionState.listen(_onConnectionStateChange);
+
+    device
+        .connect(
+          license: License.nonprofit,
+          timeout: const Duration(seconds: 15),
+        )
+        .catchError((Object e) {
+      debugPrint('[BleController] reconnect connect error: $e');
+      _onDisconnected(error: '重连错误: $e');
+    });
   }
 
   /// 用户主动断开连接，不触发自动重连。
@@ -465,6 +515,16 @@ class BleController extends StateNotifier<BleState> {
     _reconnectTimer?.cancel();
     _reconnectTimer = null;
     _cancelAllSubscriptions();
+
+    try {
+      await _device?.disconnect();
+    } catch (e) {
+      debugPrint('[BleController] disconnect error: $e');
+    }
+    _device = null;
+    _imageChar = null;
+    _telemetryChar = null;
+    _controlChar = null;
 
     state = BleState(
       status: ConnectionStatus.disconnected,
@@ -485,8 +545,8 @@ class BleController extends StateNotifier<BleState> {
   /// - [speedPct]  0-100 目标速度百分比
   Future<void> sendControl(int direction, int turn, int speedPct) async {
     if (state.status != ConnectionStatus.connected) return;
-    final deviceId = state.deviceId;
-    if (deviceId == null) return;
+    final char = _controlChar;
+    if (char == null) return;
 
     try {
       // Rust 纯函数编码（control.rs::encode_control）
@@ -496,11 +556,7 @@ class BleController extends StateNotifier<BleState> {
         speedPct: speedPct,
       );
 
-      final char = _qualifiedChar(
-        deviceId,
-        CarDeviceConstants.controlCharacteristicUuid,
-      );
-      await _ble.writeCharacteristicWithResponse(char, value: packet);
+      await char.write(packet, withoutResponse: false);
     } catch (e) {
       state = state.copyWith(errorMessage: '控制指令发送失败: $e');
     }
@@ -532,8 +588,8 @@ class BleController extends StateNotifier<BleState> {
       state = state.copyWith(errorMessage: '设备未连接');
       return;
     }
-    final deviceId = state.deviceId;
-    if (deviceId == null) {
+    final char = _controlChar;
+    if (char == null) {
       state = state.copyWith(errorMessage: '设备未连接');
       return;
     }
@@ -549,11 +605,7 @@ class BleController extends StateNotifier<BleState> {
         encoderSlots: encoderSlots,
       );
 
-      final char = _qualifiedChar(
-        deviceId,
-        CarDeviceConstants.controlCharacteristicUuid,
-      );
-      await _ble.writeCharacteristicWithResponse(char, value: packet);
+      await char.write(packet, withoutResponse: false);
     } catch (e) {
       state = state.copyWith(errorMessage: '参数下发失败: $e');
     }
@@ -575,8 +627,8 @@ class BleController extends StateNotifier<BleState> {
       state = state.copyWith(errorMessage: '设备未连接');
       return;
     }
-    final deviceId = state.deviceId;
-    if (deviceId == null) {
+    final char = _controlChar;
+    if (char == null) {
       state = state.copyWith(errorMessage: '设备未连接');
       return;
     }
@@ -587,11 +639,7 @@ class BleController extends StateNotifier<BleState> {
         password: password,
       );
 
-      final char = _qualifiedChar(
-        deviceId,
-        CarDeviceConstants.controlCharacteristicUuid,
-      );
-      await _ble.writeCharacteristicWithResponse(char, value: packet);
+      await char.write(packet, withoutResponse: false);
     } catch (e) {
       state = state.copyWith(errorMessage: 'WiFi 配置下发失败: $e');
     }
@@ -601,15 +649,6 @@ class BleController extends StateNotifier<BleState> {
 
   /// 最大重连次数
   static const int _maxReconnectAttempts = 3;
-
-  /// 构造 [QualifiedCharacteristic]。
-  QualifiedCharacteristic _qualifiedChar(String deviceId, String charUuid) {
-    return QualifiedCharacteristic(
-      deviceId: deviceId,
-      serviceId: Uuid.parse(CarDeviceConstants.serviceUuid),
-      characteristicId: Uuid.parse(charUuid),
-    );
-  }
 
   /// 取消图像/遥测特征订阅。
   void _cancelCharacteristicSubs() {
@@ -638,7 +677,7 @@ class BleController extends StateNotifier<BleState> {
  * 节点：ConnectionStatus
  *   disconnected  — 初始 / 已断开（含扫描完成待选、重连耗尽）
  *   scanning       — 正在扫描 5s
- *   connecting     — connectToDevice 已发起，等待 connected 事件
+ *   connecting     — device.connect 已发起，等待 connected 事件
  *   connected      — MTU 协商 + 特征订阅完成，帧/遥测流活跃
  *   reconnecting   — 异常断开后退避重连中（1s/2s/4s，最多 3 次）
  *
@@ -647,11 +686,11 @@ class BleController extends StateNotifier<BleState> {
  *   startScan()                → scanning
  *   扫描 5s 到 + 无匹配         → disconnected (errorMessage)
  *   扫描 5s 到 + 有匹配         → disconnected (discoveredDevices 非空)
- *   connect(device)            → connecting
+ *   connect(result)            → connecting
  *   onConnected (MTU+订阅+占位) → connected
- *   连接流 onError / disconnected 事件（非用户主动）
+ *   连接流 disconnected 事件（非用户主动）
  *                              → reconnecting (attempts < 3) / disconnected (耗尽)
- *   重连 Timer 到 → connectToDevice → connecting → connected / 循环
+ *   重连 Timer 到 → connect → connecting → connected / 循环
  *   disconnect()               → disconnected（_userDisconnect=true，不重连）
  *
  * 流暴露：
