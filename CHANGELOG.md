@@ -7,8 +7,12 @@
 
 ## [Unreleased]
 
+### Fixed
+- fix(app): 修复 App 启动空白页 —— `main.dart` 现在显式调用 `await RustLib.init()`（flutter_rust_bridge v2 要求），并在初始化失败时显示回退界面；同时用 try/catch 保护 `themeModeProvider.load()`，避免 `SharedPreferences` 等插件初始化异常阻止 `runApp` 导致空白屏。另设置 `ErrorWidget.builder`，将未捕获的 widget 构建异常渲染为 Material 错误页，而非 release 模式空白 / debug 模式红屏。
+
 ### Changed
-- feat(app): 重构 App 导航为状态驱动 -- 移除 HomeScreen 的底部 NavigationBar 三 tab（驾驶/设备/设置）与 IndexedStack，改为 _AppRouter 按 leControllerProvider.status 切换：未连接 -> DeviceConnectionScreen（设备连接页，应用入口），已连接 -> ControlScreen（横屏控制页）。设置与「断开连接」藏入 AppBar PopupMenuButton，不再占底部导航。符合「打开应用进入设备连接，连接设备再进入控制页面，设置藏在菜单栏」的交互诉求。
+- docs(readme): 更新根 `README.md` 的「App UI 结构」与「App 操作模式」章节，移除旧版底部 `NavigationBar` 三 tab / `IndexedStack` 描述，改为与代码一致的状态驱动 `_AppRouter`（`connected -> ControlScreen`，其余 -> `DeviceConnectionScreen`），并说明设置页通过 AppBar `PopupMenuButton` 进入。
+- feat(app): 重构 App 导航为状态驱动 -- 移除 HomeScreen 的底部 NavigationBar 三 tab（驾驶/设备/设置）与 IndexedStack，改为 _AppRouter 按 bleControllerProvider.status 切换：未连接 -> DeviceConnectionScreen（设备连接页，应用入口），已连接 -> ControlScreen（横屏控制页）。设置与「断开连接」藏入 AppBar PopupMenuButton，不再占底部导航。符合「打开应用进入设备连接，连接设备再进入控制页面，设置藏在菜单栏」的交互诉求。
 - feat(app): 控制页改为横屏布局 -- 新增 control_screen.dart，Row 左侧摄像头（含 HUD）+ 遥测条、右侧 300px 固定宽单摇杆列；initState 锁定 landscapeLeft/landscapeRight，dispose 恢复全方向（设备连接/设置页允许竖屏）。适配横屏操控场景。
 - feat(app): 操控面板简化为单摇杆 -- control_panel.dart 移除体感（TiltController）/ 键盘（KeyboardController）模式切换 SegmentedButton 与 ControlMode 枚举，仅保留虚拟摇杆 + 紧急停车按钮。符合「使用单电子摇杆控制」诉求；摇杆节流 / 释放保留方向等逻辑不变。
 - refactor(app): devices_screen.dart 类名 DevicesScreen -> DeviceConnectionScreen，AppBar 标题改「设备连接」并加 PopupMenuButton（设置入口）；原底部 tab 导航已移除。
@@ -53,7 +57,7 @@
 - fix(ci/app): 修正 Android compileSdk patch 的 Kotlin DSL 注入块，将 `CommonExtension` 替换为反射调用 `setCompileSdk`/`setCompileSdkVersion(Int)`，修复 Gradle `Unresolved reference 'compileSdk'` 构建失败。
 - fix(ci/app): 修正根 `android/build.gradle(.kts)` 的 `subprojects` 注入方式：改在已有的第一个 `subprojects {` 块内插入 `afterEvaluate { ... }`，避免在文件末尾追加新块导致 Gradle 报 `Cannot run Project.afterEvaluate(Action) when the project is already evaluated`。
 - fix(app): `pubspec.yaml` 中 `flutter_rust_bridge` 的版本约束 `=2.12.0` 不符合 Dart pub 语法（`=` 是 Cargo 语法），导致 `flutter pub get` 报 `Invalid version constraint` 失败；改为精确版本 `2.12.0`。
-- fix(app): `ble_controller.dart` 修复多个状态机竞态：connect() 取消残留扫描订阅/定时器；startScan() 超时回调早退时补 complete 防止 Future 永久挂起；_onConnected() 置 connected 前取消残留 _reconnectTimer，避免健康连接被自残式重连断开；connect() 与 _attemptReconnect() 重置 _initializing 时同步递增 _initGeneration，防止旧 _onConnected 从 await 恢复后干扰新连接。
+- fix(app): `ble_controller.dart` 修复多个状态机竞态：connect() 取消残留扫描订阅/定时器；startScan() 超时回调早退时补 complete 防止 Future 永久挂起；_onConnected() 置 connected 前取消残留 _reconnectTimer，避免健康连接被自残式重连断开；connect() 与 _attemptReconnect() 重置 _initializing 时同步递增 _initGeneration，防止旧 _onConnected` 从 await 恢复后干扰新连接。
 - fix(app): `keyboard_controller.dart` 移除 `widgets.dart` 中对 `KeyEventResult` 的 show import（由 `services.dart` 全量提供），避免潜在编译错误。
 - fix(ci): 确认 `actions/checkout@v7`、`actions/cache@v6`、`actions/upload-artifact@v7`、`actions/download-artifact@v8`、`actions/setup-python@v6` 大版本 tag 均存在且为 Node 24 运行时，回退此前错误的 `@v5` 回退，避免 Node 20 弃用警告。
 - fix(ci/app): 修正 Android compileSdk `sed` 正则，要求至少一位数字并显式匹配 `compileSdk = flutter.compileSdkVersion` 引用形式，避免 patch 后生成非法 Kotlin 导致 Gradle 失败。
