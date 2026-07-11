@@ -367,6 +367,11 @@ jobs:
 
       - name: Build Windows desktop
         if: matrix.flutter_target == 'windows'
+        env:
+          # Visual Studio 2026 / MSVC 14.51 已弃用 <experimental/coroutine>。
+          # permission_handler_windows 仍引用该头文件，触发 STL1011 静态断言。
+          # 注入该宏抑制错误，使当前插件版本可继续编译。
+          CL: /D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS
         run: cd app && flutter build windows --release
 
       - name: Build macOS desktop
