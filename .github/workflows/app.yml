@@ -164,7 +164,7 @@ jobs:
       - name: Bootstrap Flutter platforms
         run: cd app && flutter create . --platforms=android,linux,windows,macos --org com.smartcar --project-name smart_car_remote
 
-      # 9. patch Android compileSdk 至 35（仅 Android 构建需要）：flutter_reactive_ble 依赖 AndroidX 1.7.x
+      # 9. patch Android compileSdk 至 35（仅 Android 构建需要）：flutter_blue_plus 依赖 AndroidX 1.7.x
       #      要求 compileSdk ≥ 34；android/ 由 flutter create 生成、不在版本控制中，须在 CI 内 patch
       - name: Patch Android compileSdk
         if: matrix.flutter_target == 'apk'
