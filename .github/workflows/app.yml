@@ -338,33 +338,49 @@ jobs:
           echo "$HOME/flutter_ohos/bin" >> "$GITHUB_PATH"
 
       # 4. 修复 fork 的 Flutter SDK 版本号占位
-      #    gitcode 默认分支的 version 文件写死为 0.0.0-unknown，会导致 flutter create
-      #    内部 flutter pub get 因版本约束（>=3.27.0）失败，需改写为真实版本号。
+      #    gitcode fork 用 `git describe --tags` 推导版本，--depth 1 克隆无 tag → 回退常量
+      #    `0.0.0-unknown`，且 bootstrap 会把 0.0.0-unknown 写回 version 文件并新建
+      #    bin/cache/flutter.version.json。因此必须**先 bootstrap 再 patch 缓存**，
+      #    先写 version 文件无效（会被 bootstrap 覆盖）。
       - name: Fix Flutter SDK version for fork
         run: |
           FLUTTER_VERSION="3.27.4"
-          echo "$FLUTTER_VERSION" > "$HOME/flutter_ohos/version"
+          # 1) 触发 bootstrap（创建 bin/cache/flutter.version.json，内容为 0.0.0-unknown）
+          flutter --version >/dev/null 2>&1 || true
+          # 2) bootstrap 后 patch 缓存里的 0.0.0-unknown → 真实版本号
+          #    后续命令因缓存存在且 !fetchTags 直接读缓存，不会再次覆盖
           if [ -f "$HOME/flutter_ohos/bin/cache/flutter.version.json" ]; then
             sed -i "s/0\.0\.0-unknown/$FLUTTER_VERSION/g" "$HOME/flutter_ohos/bin/cache/flutter.version.json"
           fi
-          echo "Flutter version patched to: $FLUTTER_VERSION"
+          echo "$FLUTTER_VERSION" > "$HOME/flutter_ohos/version"
+          echo "Patched flutter version to $FLUTTER_VERSION"
 
-      # 5. 下载 OpenHarmony SDK（公开下载地址：repo.harmonyos.com）
-      #    API 版本选 14+，linux 64-bit 命令行工具包；提前到 flutter create 前，
-      #    因为 ohos 平台目录生成可能需要 SDK 定位。
+      # 5. 下载 OpenHarmony SDK（公开下载地址：huaweicloud openharmony 镜像）
+      #    fork 的 `flutter create --platforms=ohos` 会硬性校验 SDK 结构
+      #    （validApi10/11SdkDirectory），无 SDK 或空目录会 throwToolExit。
+      #    提前到 flutter create 前；失败由 continue-on-error 兜底。
       - name: Download OpenHarmony SDK
         run: |
           mkdir -p "$HOME/ohos-sdk"
-          cd "$HOME/ohos-sdk"
-          # ohos-sdk 的具体下载 URL 可能随版本变化，此处先尝试官方公开路径
-          # 失败由 continue-on-error 兜底，记录日志供调试
-          SDK_URL="https://repo.harmonyos.com/os/ohos-sdk/5.0.0-Release/ohos-sdk-linux.tar.gz"
-          curl -fSL -o ohos-sdk.tar.gz "$SDK_URL" || true
-          if [ -f ohos-sdk.tar.gz ]; then
-            tar -xzf ohos-sdk.tar.gz
+          # 尝试 OpenHarmony 4.0 Release（API 10）官方公开镜像；URL 失败则继续，由后续步骤报错
+          for SDK_URL in \
+            "https://repo.huaweicloud.com/openharmony/os/4.0-Release/ohos-sdk-linux.tar.gz" \
+            "https://repo.harmonyos.com/os/ohos-sdk/5.0.0-Release/ohos-sdk-linux.tar.gz"; do
+            echo "Trying: $SDK_URL"
+            if curl -fSL -o /tmp/ohos-sdk.tar.gz "$SDK_URL" 2>&1; then
+              echo "Downloaded from: $SDK_URL"
+              break
+            fi
+          done
+          if [ -f /tmp/ohos-sdk.tar.gz ]; then
+            tar -xzf /tmp/ohos-sdk.tar.gz -C "$HOME/ohos-sdk" 2>&1 || true
+            # SDK 解压后结构因版本而异，把根目录与可能的 openharmony 子目录都暴露给校验
             echo "OHOS_SDK_HOME=$HOME/ohos-sdk" >> "$GITHUB_ENV"
             echo "HOS_SDK_HOME=$HOME/ohos-sdk" >> "$GITHUB_ENV"
-            echo "$HOME/ohos-sdk/toolchains" >> "$GITHUB_PATH"
+            echo "DEVECO_SDK_HOME=$HOME/ohos-sdk" >> "$GITHUB_ENV"
+            find "$HOME/ohos-sdk" -maxdepth 3 -type d 2>/dev/null | head -20
+          else
+            echo "WARNING: OpenHarmony SDK 下载失败，后续 flutter create 可能报 No Hmos SDK found"
           fi
 
       # 6. 安装 hvigor / ohpm（npm 全局，使用华为 OpenHarmony registry）
