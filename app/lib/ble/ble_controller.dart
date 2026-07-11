@@ -23,6 +23,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 // frb codegen 绑定
 import 'package:smart_car_remote/src/rust/control.dart' as control_rust;
 
+import 'ble_permissions.dart';
 import 'car_device.dart';
 import 'frame_stream.dart';
 
@@ -57,12 +58,14 @@ class BleState {
   final String? deviceId;
   final String? errorMessage;
   final List<ScanResult> discoveredDevices;
+  final BluetoothAdapterState adapterState;
 
   const BleState({
     this.status = ConnectionStatus.disconnected,
     this.deviceId,
     this.errorMessage,
     this.discoveredDevices = const [],
+    this.adapterState = BluetoothAdapterState.unknown,
   });
 
   /// 通用 copyWith；nullable 字段传 null 表示置空，省略表示保持。
@@ -71,6 +74,7 @@ class BleState {
     Object? deviceId = _unset,
     Object? errorMessage = _unset,
     List<ScanResult>? discoveredDevices,
+    BluetoothAdapterState? adapterState,
   }) {
     return BleState(
       status: status ?? this.status,
@@ -81,6 +85,7 @@ class BleState {
           ? this.errorMessage
           : errorMessage as String?,
       discoveredDevices: discoveredDevices ?? this.discoveredDevices,
+      adapterState: adapterState ?? this.adapterState,
     );
   }
 }
@@ -117,6 +122,12 @@ final telemetryStreamProvider = StreamProvider<Telemetry>((ref) {
 class BleController extends StateNotifier<BleState> {
   BleController() : super(const BleState()) {
     debugPrint('[BleController] constructed');
+    // 监听系统蓝牙开关状态，用于扫描/连接前拦截并提示用户
+    _adapterSub = FlutterBluePlus.adapterState.listen((adapterState) {
+      _adapterState = adapterState;
+      // 同步到 BleState，让 UI 能响应式地显示/隐藏横幅
+      state = state.copyWith(adapterState: adapterState);
+    });
   }
 
   final FrameStreamAssembler _frameAssembler = FrameStreamAssembler();
@@ -132,11 +143,18 @@ class BleController extends StateNotifier<BleState> {
       Guid(CarDeviceConstants.telemetryCharacteristicUuid);
 
   // ---- 流订阅 ----
+  StreamSubscription<BluetoothAdapterState>? _adapterSub;
   StreamSubscription<List<ScanResult>>? _scanSub;
   Timer? _scanTimer; // 扫描超时定时器（可取消，避免 dispose 后回调竞态）
   StreamSubscription<BluetoothConnectionState>? _connSub;
   StreamSubscription<List<int>>? _imageSub;
   StreamSubscription<List<int>>? _telemetrySub;
+
+  // ---- 适配器状态 ----
+  BluetoothAdapterState _adapterState = BluetoothAdapterState.unknown;
+
+  /// 当前系统蓝牙适配器状态。
+  BluetoothAdapterState get adapterState => _adapterState;
 
   // ---- GATT 句柄（连接成功后由 discoverServices 填充）----
   BluetoothDevice? _device;
@@ -155,6 +173,7 @@ class BleController extends StateNotifier<BleState> {
   /// 释放资源（ProviderScope dispose 时自动调用）。
   @override
   void dispose() {
+    _adapterSub?.cancel();
     _cancelAllSubscriptions();
     _reconnectTimer?.cancel();
     _frameAssembler.dispose();
@@ -182,6 +201,28 @@ class BleController extends StateNotifier<BleState> {
     if (state.status == ConnectionStatus.connected) return;
     if (state.status == ConnectionStatus.scanning) return;
 
+    // 检查蓝牙适配器状态
+    final adapter = _adapterState;
+    if (adapter != BluetoothAdapterState.on) {
+      state = state.copyWith(
+        errorMessage: adapter == BluetoothAdapterState.off
+            ? '蓝牙已关闭，请先开启蓝牙'
+            : '蓝牙未就绪，请检查蓝牙状态',
+      );
+      return;
+    }
+
+    // 请求平台 BLE 权限
+    final statuses = await BlePermissions.requestAll();
+    if (!BlePermissions.isGranted(statuses)) {
+      if (BlePermissions.isPermanentlyDenied(statuses)) {
+        state = state.copyWith(errorMessage: '蓝牙权限被永久拒绝，请前往系统设置开启');
+      } else {
+        state = state.copyWith(errorMessage: '蓝牙权限未授予，无法扫描设备');
+      }
+      return;
+    }
+
     // 清理旧订阅（连接订阅除外，避免打断进行中的连接）
     _scanSub?.cancel();
     _scanSub = null;
@@ -189,7 +230,10 @@ class BleController extends StateNotifier<BleState> {
     _scanTimer = null;
     _cancelCharacteristicSubs();
 
-    state = const BleState(status: ConnectionStatus.scanning);
+    state = BleState(
+      status: ConnectionStatus.scanning,
+      adapterState: state.adapterState,
+    );
 
     final found = <ScanResult>[];
     final done = Completer<void>();
@@ -217,6 +261,7 @@ class BleController extends StateNotifier<BleState> {
           state = BleState(
             status: ConnectionStatus.disconnected,
             errorMessage: '扫描失败: $e',
+            adapterState: state.adapterState,
           );
           done.complete();
         }
@@ -241,15 +286,17 @@ class BleController extends StateNotifier<BleState> {
       _scanTimer = null;
       if (!done.isCompleted) {
         if (found.isEmpty) {
-          state = const BleState(
+          state = BleState(
             status: ConnectionStatus.disconnected,
             errorMessage: '未发现设备 ${CarDeviceConstants.deviceName}',
+            adapterState: state.adapterState,
           );
         } else {
           // 保持 discoveredDevices 供 UI 选择，状态回 disconnected
           state = BleState(
             status: ConnectionStatus.disconnected,
             discoveredDevices: List.of(found),
+            adapterState: state.adapterState,
           );
         }
         done.complete();
@@ -263,6 +310,30 @@ class BleController extends StateNotifier<BleState> {
 
   /// 连接指定设备：建立连接 → 协商 MTU 512（Android） → 订阅 image/telemetry 特征 → 写控制占位。
   Future<void> connect(ScanResult result) async {
+    // 连接前同样检查蓝牙状态与权限
+    if (_adapterState != BluetoothAdapterState.on) {
+      state = state.copyWith(
+        status: ConnectionStatus.disconnected,
+        errorMessage: '蓝牙未开启，无法连接设备',
+      );
+      return;
+    }
+    final statuses = await BlePermissions.requestAll();
+    if (!BlePermissions.isGranted(statuses)) {
+      if (BlePermissions.isPermanentlyDenied(statuses)) {
+        state = state.copyWith(
+          status: ConnectionStatus.disconnected,
+          errorMessage: '蓝牙权限被永久拒绝，请前往系统设置开启',
+        );
+      } else {
+        state = state.copyWith(
+          status: ConnectionStatus.disconnected,
+          errorMessage: '蓝牙权限未授予，无法连接设备',
+        );
+      }
+      return;
+    }
+
     final device = result.device;
     debugPrint('[BleController] connect: ${device.remoteId}');
     _userDisconnect = false;
@@ -281,6 +352,7 @@ class BleController extends StateNotifier<BleState> {
     state = BleState(
       status: ConnectionStatus.connecting,
       deviceId: device.remoteId.str,
+      adapterState: state.adapterState,
     );
 
     _connSub = device.connectionState.listen(_onConnectionStateChange);
@@ -451,6 +523,7 @@ class BleController extends StateNotifier<BleState> {
       state = BleState(
         status: ConnectionStatus.disconnected,
         discoveredDevices: state.discoveredDevices,
+        adapterState: state.adapterState,
       );
       return;
     }
@@ -529,6 +602,7 @@ class BleController extends StateNotifier<BleState> {
     state = BleState(
       status: ConnectionStatus.disconnected,
       discoveredDevices: state.discoveredDevices,
+      adapterState: state.adapterState,
     );
   }
 
