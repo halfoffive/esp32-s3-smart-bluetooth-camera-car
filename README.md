@@ -97,12 +97,7 @@ flutter build windows --release    # Windows
 flutter build macos --release      # macOS
 ```
 
-HarmonyOS HAP 构建需使用 [flutter_flutter](https://gitcode.com/CPF-Flutter/flutter_flutter) SDK fork（OpenHarmony 适配版），并预装 JDK 17 + OpenHarmony SDK + hvigor/ohpm；CI 的 `build-hap` job 已配齐此工具链（实验性，允许失败）。本地构建命令：
-
-```bash
-# 需先 clone flutter_flutter fork 并加入 PATH
-cd app && flutter build hap --release    # HarmonyOS（unsigned）
-```
+> HarmonyOS HAP 构建已从 CI 中移除（工具链链路不稳定、下载耗时），如需 HAP 请本地按 `.trae/specs/fix-drive-blank-and-add-hap-ci/` 历史 spec 搭链后 `flutter build hap --release`。
 
 ### Rust 文档
 ```bash
@@ -112,6 +107,9 @@ cargo doc --no-deps --open
 
 ### CI 产物
 GitHub Actions 在 push 到 main 或打 `v*` tag 时构建各平台二进制并上传 artifact，详见 Actions 页。
+
+- **桌面产物内嵌 `rust_lib`**：`build-matrix` job 在 `flutter build <desktop>` 之后额外用 `cargo build --release --target <rust_target>` 编译 Rust cdylib，并拷贝到 Flutter release bundle（Windows `rust_lib.dll` 与可执行文件同目录，Linux `librust_lib.so` 位于 `bundle/lib/`，macOS `librust_lib.dylib` 位于 `<app>.app/Contents/Frameworks/`）。用户下载的桌面产物开箱即用，无需本地再跑 `cargo build`。
+- CI 中 `cargo-expand` 与 `flutter_rust_bridge_codegen` 均通过 [`cargo-binstall`](https://github.com/cargo-bins/cargo-binstall) 拉预编译二进制安装（秒级完成），不再从源码编译。
 
 ## BLE 通信协议
 

@@ -7,6 +7,15 @@
 
 ## [Unreleased]
 
+### Removed
+- ci(app): 全面弃用 HarmonyOS HAP 构建 —— `.github/workflows/app.yml` 移除 `build-hap` job（工具链不稳定、下载耗时，且已长期设为 `workflow_dispatch` 手动触发从未成功过），`release` job 的 `needs` 不再列 `build-hap`，`files` glob 移除 `artifacts/app-hap/*`。如需 HAP 请本地手动构建。
+
+### Fixed
+- fix(ci/app): 修复桌面（Windows/Linux/macOS）release 产物启动即报 `Failed to load dynamic library 'rust_lib.dll'`（error code 126）—— `app.yml` 的 `build-matrix` job 在 `flutter build <desktop>` 之后新增「Bundle rust_lib into <platform> desktop」步骤，用 `cargo build --release --target <rust_target>` 编译 Rust cdylib 并拷贝到 Flutter release bundle：Linux → `build/linux/x64/release/bundle/lib/librust_lib.so`，Windows → `build/windows/x64/runner/Release/rust_lib.dll`（可执行文件同目录），macOS → `<app>.app/Contents/Frameworks/librust_lib.dylib`。Flutter 桌面打包不感知外部 Cargo crate，默认不复制 Rust 动态库，是本次启动失败根因。
+
+### Changed
+- ci(app): `cargo-expand` 与 `flutter_rust_bridge_codegen` 改用 [`cargo-binstall`](https://github.com/cargo-bins/cargo-binstall) 拉预编译二进制，取代 `cargo install --version ... --locked`（后者需要现场编译，每次 CI 数分钟）。所有 job（`cargo-doc`/`build-matrix`）统一走 `cargo-bins/cargo-binstall@main` action + `cargo binstall -y --force <crate>@<version>`，安装从数分钟降至秒级。
+
 ### Changed
 - feat(app): BLE 包从 `flutter_reactive_ble` 迁移到 `flutter_blue_plus` —— 重写 `app/lib/ble/ble_controller.dart` 使用 `FlutterBluePlus.startScan` / `BluetoothDevice.connect` / `discoverServices` / `setNotifyValue` / `characteristic.write`，保留 5 状态 `ConnectionStatus` 机、3 次指数退避重连、MTU=512（Android 显式请求，桌面自动协商）；`app/lib/ui/devices_screen.dart` 改用 `ScanResult` / `BluetoothDevice` 类型；`app/pubspec.yaml` 替换依赖；`.github/workflows/app.yml` 更新 compileSdk patch 注释。Rust 协议层、frb 绑定、GATT UUID 与帧格式均不变。
 
