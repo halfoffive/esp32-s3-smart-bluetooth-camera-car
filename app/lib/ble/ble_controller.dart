@@ -225,8 +225,15 @@ class BleController extends StateNotifier<BleState> {
     // 请求平台 BLE 权限
     final statuses = await BlePermissions.requestAll();
     if (!BlePermissions.isGranted(statuses)) {
-      if (BlePermissions.isPermanentlyDenied(statuses)) {
-        state = state.copyWith(errorMessage: '蓝牙权限被永久拒绝，请前往系统设置开启');
+      if (BlePermissions.isNotDeclaredInManifest(statuses)) {
+        state = state.copyWith(
+          errorMessage:
+              '蓝牙权限未在 AndroidManifest.xml 中声明，请运行 scripts/setup-android.sh 后重试',
+        );
+      } else if (BlePermissions.shouldShowRationale(statuses)) {
+        state = state.copyWith(
+          errorMessage: '蓝牙权限被拒绝，请前往系统设置开启',
+        );
       } else {
         state = state.copyWith(errorMessage: '蓝牙权限未授予，无法扫描设备');
       }
@@ -347,10 +354,16 @@ class BleController extends StateNotifier<BleState> {
     }
     final statuses = await BlePermissions.requestAll();
     if (!BlePermissions.isGranted(statuses)) {
-      if (BlePermissions.isPermanentlyDenied(statuses)) {
+      if (BlePermissions.isNotDeclaredInManifest(statuses)) {
         state = state.copyWith(
           status: ConnectionStatus.disconnected,
-          errorMessage: '蓝牙权限被永久拒绝，请前往系统设置开启',
+          errorMessage:
+              '蓝牙权限未在 AndroidManifest.xml 中声明，请运行 scripts/setup-android.sh 后重试',
+        );
+      } else if (BlePermissions.shouldShowRationale(statuses)) {
+        state = state.copyWith(
+          status: ConnectionStatus.disconnected,
+          errorMessage: '蓝牙权限被拒绝，请前往系统设置开启',
         );
       } else {
         state = state.copyWith(

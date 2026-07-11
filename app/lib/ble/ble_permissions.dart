@@ -59,8 +59,23 @@ class BlePermissions {
   ///
   /// 注意：permission_handler 的 [isDenied] 包含尚未请求与已拒绝两种情况，
   /// 配合 [requestAll] 调用后，可用于判断是否需要显示解释性 rationale。
+  /// UI 层可随后调用 [showRationaleDialog] 引导用户。
   static bool shouldShowRationale(Map<Permission, PermissionStatus> statuses) {
     return statuses.values.any((s) => s.isDenied);
+  }
+
+  /// Android 上若 `bluetoothScan` 与 `location` 同时被永久拒绝，
+  /// 大概率是 AndroidManifest.xml 未声明对应权限，需运行 setup-android 脚本注入。
+  static bool isNotDeclaredInManifest(
+    Map<Permission, PermissionStatus> statuses,
+  ) {
+    if (!Platform.isAndroid) return false;
+    final scan = statuses[Permission.bluetoothScan];
+    final loc = statuses[Permission.location];
+    return scan != null &&
+        scan.isPermanentlyDenied &&
+        loc != null &&
+        loc.isPermanentlyDenied;
   }
 
   /// 展示权限说明对话框，并提供跳转到应用设置的入口。

@@ -15,17 +15,34 @@ import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../ble/ble_controller.dart';
+import '../ble/ble_permissions.dart';
 import 'settings_route.dart';
 
 /// 设备连接页（应用入口）：扫描、连接、断开 BLE 设备。
 ///
 /// 连接成功后由 _AppRouter 自动切换到控制页。
 /// 设置藏在 AppBar 菜单中。
-class DeviceConnectionScreen extends ConsumerWidget {
+class DeviceConnectionScreen extends ConsumerStatefulWidget {
   const DeviceConnectionScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<DeviceConnectionScreen> createState() =>
+      _DeviceConnectionScreenState();
+}
+
+class _DeviceConnectionScreenState
+    extends ConsumerState<DeviceConnectionScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // 首帧后主动请求 BLE 权限，不阻塞 UI；用户点击扫描时再次检查兜底。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) BlePermissions.requestAll();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final state = ref.watch(bleControllerProvider);
     final cs = Theme.of(context).colorScheme;
 
