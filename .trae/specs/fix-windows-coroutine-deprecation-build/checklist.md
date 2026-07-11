@@ -10,5 +10,5 @@
 - [x] `CHANGELOG.md` `[Unreleased]` → Fixed 下已记录本次 Windows 构建修复
 
 ## 提交
-- [ ] 相关文件已用 `git add` 加入暂存区
-- [ ] 提交信息符合 Conventional Commits 规范
+- [x] 相关文件已用 `git add` 加入暂存区
+- [x] 提交信息符合 Conventional Commits 规范
