@@ -7,6 +7,9 @@
 
 ## [Unreleased]
 
+### Fixed
+- fix(ci/app): 修复 code review 指出的 CI 稳定性问题 —— (1) `cargo-bins/cargo-binstall` action 从 `@main` pin 到 `@v1.9.0`，消除追随分支带来的供应链风险；(2) 为 Linux/Windows/macOS 三个 `Bundle rust_lib into <platform>` 步骤统一加 `set -e` + Rust cdylib 产物存在性预检 + Flutter release bundle 目标目录存在性预检，未命中时打印 `find` 辅助定位日志再 `exit 1`，避免未来 Flutter 目录漂移时报错含糊。
+
 ### Removed
 - ci(app): 全面弃用 HarmonyOS HAP 构建 —— `.github/workflows/app.yml` 移除 `build-hap` job（工具链不稳定、下载耗时，且已长期设为 `workflow_dispatch` 手动触发从未成功过），`release` job 的 `needs` 不再列 `build-hap`，`files` glob 移除 `artifacts/app-hap/*`。如需 HAP 请本地手动构建。
 

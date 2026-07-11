@@ -64,7 +64,7 @@ jobs:
 
       # 5. 安装 cargo-binstall（下载预编译二进制而非源码编译，几秒完成）
       - name: Install cargo-binstall
-        uses: cargo-bins/cargo-binstall@main
+        uses: cargo-bins/cargo-binstall@v1.9.0
 
       # 6. 用 cargo-binstall 拉预编译 cargo-expand 与 flutter_rust_bridge_codegen，取代 cargo install（后者需要现场编译数分钟）
       - name: Install cargo tools (binstall)
@@ -154,7 +154,7 @@ jobs:
 
       # 5. 安装 cargo-binstall（下载预编译二进制而非源码编译）
       - name: Install cargo-binstall
-        uses: cargo-bins/cargo-binstall@main
+        uses: cargo-bins/cargo-binstall@v1.9.0
 
       # 6. 用 cargo-binstall 拉 cargo-expand + flutter_rust_bridge_codegen
       - name: Install cargo tools (binstall)
@@ -292,42 +292,77 @@ jobs:
       #       修复 "Failed to load dynamic library 'rust_lib.dll' (error code: 126)"：
       #       Flutter 默认桌面打包不感知外部 Cargo crate，需在 build 之后把
       #       rust_lib.{dll,so,dylib} 放到可执行文件同目录 / macOS Frameworks 目录。
+      #       注：Linux 与 macOS 矩阵条目的 rust_target 恰好等于 host，但仍显式带
+      #       `--target <triple>` 保持三平台产物路径一致（cargo 会输出到
+      #       `target/<triple>/release/`），三个 step 结构完全对称。
       - name: Bundle rust_lib into Linux desktop
         if: matrix.flutter_target == 'linux'
         shell: bash
         run: |
+          set -e
           cd app/rust
           cargo build --release --target ${{ matrix.rust_target }}
           cd ../..
-          cp app/rust/target/${{ matrix.rust_target }}/release/librust_lib.so \
-             app/build/linux/x64/release/bundle/lib/librust_lib.so
-          ls -al app/build/linux/x64/release/bundle/lib/
+          SRC="app/rust/target/${{ matrix.rust_target }}/release/librust_lib.so"
+          DEST_DIR="app/build/linux/x64/release/bundle/lib"
+          if [ ! -f "$SRC" ]; then
+            echo "ERROR: 未找到 Rust cdylib 产物 $SRC"
+            find app/rust/target -maxdepth 4 -name 'librust_lib.so' 2>/dev/null || true
+            exit 1
+          fi
+          if [ ! -d "$DEST_DIR" ]; then
+            echo "ERROR: 未找到 Flutter Linux bundle 目录 $DEST_DIR"
+            find app/build/linux -maxdepth 5 -type d 2>/dev/null || true
+            exit 1
+          fi
+          cp "$SRC" "$DEST_DIR/librust_lib.so"
+          ls -al "$DEST_DIR/"
 
       - name: Bundle rust_lib into Windows desktop
         if: matrix.flutter_target == 'windows'
         shell: bash
         run: |
+          set -e
           cd app/rust
           cargo build --release --target ${{ matrix.rust_target }}
           cd ../..
-          cp "app/rust/target/${{ matrix.rust_target }}/release/rust_lib.dll" \
-             "app/build/windows/x64/runner/Release/rust_lib.dll"
-          ls -al app/build/windows/x64/runner/Release/
+          SRC="app/rust/target/${{ matrix.rust_target }}/release/rust_lib.dll"
+          DEST_DIR="app/build/windows/x64/runner/Release"
+          if [ ! -f "$SRC" ]; then
+            echo "ERROR: 未找到 Rust cdylib 产物 $SRC"
+            find app/rust/target -maxdepth 4 -name 'rust_lib.dll' 2>/dev/null || true
+            exit 1
+          fi
+          if [ ! -d "$DEST_DIR" ]; then
+            echo "ERROR: 未找到 Flutter Windows Release 目录 $DEST_DIR"
+            find app/build/windows -maxdepth 5 -type d 2>/dev/null || true
+            exit 1
+          fi
+          cp "$SRC" "$DEST_DIR/rust_lib.dll"
+          ls -al "$DEST_DIR/"
 
       - name: Bundle rust_lib into macOS desktop
         if: matrix.flutter_target == 'macos'
         shell: bash
         run: |
+          set -e
           cd app/rust
           cargo build --release --target ${{ matrix.rust_target }}
           cd ../..
+          SRC="app/rust/target/${{ matrix.rust_target }}/release/librust_lib.dylib"
+          if [ ! -f "$SRC" ]; then
+            echo "ERROR: 未找到 Rust cdylib 产物 $SRC"
+            find app/rust/target -maxdepth 4 -name 'librust_lib.dylib' 2>/dev/null || true
+            exit 1
+          fi
           APP_BUNDLE=$(find app/build/macos/Build/Products/Release -maxdepth 1 -name '*.app' -type d | head -n1)
           if [ -z "$APP_BUNDLE" ]; then
-            echo "ERROR: 未找到 macOS .app bundle"; exit 1
+            echo "ERROR: 未找到 macOS .app bundle"
+            find app/build/macos -maxdepth 5 -type d 2>/dev/null || true
+            exit 1
           fi
           mkdir -p "$APP_BUNDLE/Contents/Frameworks"
-          cp "app/rust/target/${{ matrix.rust_target }}/release/librust_lib.dylib" \
-             "$APP_BUNDLE/Contents/Frameworks/librust_lib.dylib"
+          cp "$SRC" "$APP_BUNDLE/Contents/Frameworks/librust_lib.dylib"
           ls -al "$APP_BUNDLE/Contents/Frameworks/"
 
       # 15. 上传构建产物（按平台区分命名）
