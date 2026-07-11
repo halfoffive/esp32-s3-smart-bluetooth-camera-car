@@ -50,11 +50,11 @@
 
 ## CI 验证
 
-- [ ] push 触发 App Build workflow，`cargo-doc` job ✅ success（clippy 零警告门槛通过）
-- [ ] `build-matrix` job 4 平台（apk/linux/windows/macos）✅ success（Part A 改动编译通过）
-- [ ] `build-hap` job 至少通过 `Bootstrap ohos platform` 步骤，不再因 `0.0.0-unknown` 版本约束失败
-- [ ] 若 `build-hap` 成功，`app-hap` artifact 已上传
-- [ ] release job（若 tag 推送）包含 HAP 产物
+- [x] push 触发 App Build workflow，`cargo-doc` job ✅ success（clippy 零警告门槛通过）—— run 29135900710 已确认
+- [x] `build-matrix` job 4 平台（apk/linux/windows/macos）✅ success（Part A 改动编译通过）—— run 29135900710 已确认
+- [x] `build-hap` job 版本补丁顺序修复经子代理本地复现验证（`flutter --version` bootstrap 后 patch `bin/cache/flutter.version.json`，pub get 通过 `Got dependencies.`）—— 本地复现通过
+- [~] CI workflow_dispatch 实跑验证：用户决策跳过（信任本地复现直接结项；build-hap gate 为 `if: github.event_name == 'workflow_dispatch'`，token 无 actions:write 权限无法自动触发）
+- [~] release job（若 tag 推送）包含 HAP 产物：依赖 build-hap 实跑成功，本轮跳过
 
 ## 用户实测验证（CI 通过后请用户确认）
 
