@@ -42,6 +42,16 @@ flutter_rust_bridge_codegen generate
 flutter pub get
 ```
 
+### App 桌面端本地开发注意事项
+
+- 桌面端（Windows/Linux/macOS）运行前，需要先在 `app/rust/` 下编译 Rust crate，生成 `rust_lib.dll` / `.so` / `.dylib`：
+  ```bash
+  cd app/rust
+  cargo build --release
+  ```
+  否则 `main.dart` 中 `RustLib.init()` 会报「Failed to load dynamic library 'rust_lib.dll'」等动态库找不到错误，触发启动错误回退页。
+- `flutter_reactive_ble` **不支持 Windows / Linux / macOS 桌面端**；桌面端 `flutter run -d windows/linux/macos` 可以启动并显示 UI，但点击「扫描设备」会报 `UnimplementedError: initialize() has not been implemented`。BLE 扫描/连接/控制功能仅在 Android / iOS 上可用。
+
 `android/`、`linux/`、`windows/`、`macos/` 不在版本控制中，由 `flutter create .` 补齐，不会覆盖 `lib/` 与 `pubspec.yaml`。
 
 ### App 运行与构建
@@ -93,6 +103,9 @@ cargo doc --no-deps --open            # 本地浏览
 - BLE 协议新增 `CMD_SET_PARAMS=0x04` / `CMD_SET_WIFI=0x05` 复用控制 WRITE 特征（`...def2`），不新增 GATT 特征；`ble_task.cpp` `ControlCharacteristicCallbacks::onWrite` 中 `proto_validate` 通过后按 `buf[4]`（CMD 字节）分发，未知 CMD 直接丢弃。
 - 固件 PID/物理参数从 `config.h` 编译期宏改为运行时 `static volatile` 变量 + setter（`motor_set_pid` / `motor_set_ramp` / `motor_set_physical` / `speed_sensor_set_physical`），NVS 持久化用 Arduino-ESP32 内置 `Preferences.h`（`params_store.{h,cpp}` / `wifi_config.{h,cpp}`）。首次启动无 NVS 时回退 `config.h` 宏默认，行为与原版一致；`motor_init` / `speed_sensor_init` 在初始化时从 NVS 加载。
 - 修改 Rust 侧暴露给 Dart 的接口（如新增 `encode_set_params` / `encode_set_wifi`）后必须重跑 `flutter_rust_bridge_codegen generate`；CI 由 `app.yml` 的「Generate flutter_rust_bridge bindings」步骤自动生成。本地若无 `flutter` 命令，仅改源代码后由 CI 兜底（不要手改 `frb_generated.dart` / `frb_generated.rs`）。**本地开发时**：`app/lib/src/rust/` 已在 `.gitignore`，Dart 绑定不入版本库；Rust 新增函数后若忘记跑 codegen，`ble_controller.dart` 等调用点 `undefined_function`，**整个 Dart 编译失败会让 hot reload 静默不生效**，UI 表现为「按钮点了不换页 / tab 切换无反应」等**假 UI bug**，容易被误认为 widget/listener 问题。表现为运行时无反应先看 LSP 是否有 `undefined_function` 或 codegen 产物是否过期。
+- **frb v2 必须显式初始化**：`app/lib/main.dart` 必须在 `runApp` 之前调用 `await RustLib.init();`（由生成的 `app/lib/src/rust/frb_generated.dart` 提供），否则 Rust 动态库未加载，首次调用 `encodeControl` / `encodeSetParams` / `encodeSetWifi` 等函数时会抛「RustLib not initialized」。这不会直接让启动页空白（`BleController` 构造是干净的），但会让「点击扫描/下发参数」后立即崩溃，表象仍像 UI 问题。
+- **异步初始化异常保护**：`main()` 中 `await container.read(themeModeProvider.notifier).load()` 等插件初始化步骤必须用 try/catch 保护，否则 `SharedPreferences`（或其它插件）初始化失败会直接阻止 `runApp`，用户看到的就是**空白页**。初始化失败后仍应调用 `runApp` 并显示错误回退界面。
+- **全局构建错误回退**：生产环境务必设置 `ErrorWidget.builder`（或在 `MaterialApp.builder` 中兜底），将未捕获的 widget 构建异常渲染成可见的 Material 错误页。Flutter 在 release 模式下遇到未处理构建错误会显示空白屏，debug 模式才显示红屏；没有回退则用户/开发者都无从定位。
 - `SetParamsPayload` 在 Rust 与固件两端均须 `#pragma pack(1)` / 21 字节小端对齐，二进制布局必须严格一致（字段顺序：`kp f32` + `ki f32` + `kd f32` + `ramp_ms u32` + `wheel_dia_mm u16` + `wheel_base_mm u16` + `enc_slots u8` = 4+4+4+4+2+2+1 = 21 字节）。固件端用 `PROTO_STATIC_ASSERT(sizeof(struct SetParamsPayload) == 21, ...)` 校验；Rust 端 `#[repr(C, packed)]` 派生 + 编码后 `assert_eq!(bytes.len(), 21)` 单测。
 - HarmonyOS HAP 构建使用 `gitcode.com/CPF-Flutter/flutter_flutter` SDK fork（OpenHarmony 适配版，提供 `flutter build hap` 命令），**不可**用标准 `subosito/flutter-action`（后者不包含 ohos 平台目录模板与 `flutter build hap` 子命令）。CI 中用 `git clone --depth 1 <url> "$HOME/flutter_ohos"` + `echo "$HOME/flutter_ohos/bin" >> $GITHUB_PATH`。
 - 该 gitcode fork 默认分支的 `version` 文件可能写死为 `0.0.0-unknown`，会导致 `flutter create --platforms=ohos` 内部 `flutter pub get` 因 `pubspec.yaml` 的 `flutter: '>=3.27.0'` 约束失败。CI 须在 clone 后写入真实版本号（如 `3.27.4`）到 `$HOME/flutter_ohos/version`，并同步修正 `bin/cache/flutter.version.json` 中的占位。
@@ -104,6 +117,11 @@ cargo doc --no-deps --open            # 本地浏览
 - Riverpod 2 中 `ref.listen(provider, callback)` 写在 `ConsumerStatefulWidget.build` 顶部虽合法（Riverpod 自动去重重复注册），但推荐改用 `initState` + `ref.listenManual(provider, callback)` 注册副作用型 listener（如弹 SnackBar），避免在 widget build 期间注册 listener 的潜在副作用（build 可能被框架多次调用）。
 - **导航流程**（自 2026-07 重构）：App 不再用底部 `NavigationBar` 多 tab，改为 `_AppRouter`（`main.dart`）按 `bleControllerProvider.select((s) => s.status)` 状态驱动路由：`status == connected` -> `ControlScreen`（横屏控制页），其余 -> `DeviceConnectionScreen`（设备连接页，应用入口）。设置与「断开连接」藏入 AppBar `PopupMenuButton`（`/settings` 命名路由 `pushNamed`）。`ControlScreen.initState` 用 `SystemChrome.setPreferredOrientations([landscapeLeft, landscapeRight])` 锁横屏，`dispose` 恢复 `DeviceOrientation.values`（设备连接/设置页允许竖屏）。`ControlPanel` 仅单摇杆 + 紧急停车，不再有体感/键盘模式切换（`ControlMode` 枚举已移除）。
 - `SystemChrome.setPreferredOrientations` 是全局副作用，离开横屏页**必须**在 `dispose` 恢复全方向，否则设备连接/设置页会被锁成横屏导致表单布局异常。
+
+## 已知限制
+
+- **桌面端 BLE 不可用**：`flutter_reactive_ble` 不支持 Windows / Linux / macOS 桌面端。桌面端 `flutter run -d windows/linux/macos` 可以启动并显示 UI，但点击「扫描设备」会报 `UnimplementedError: initialize() has not been implemented`。BLE 扫描 / 连接 / 控制功能仅在 Android / iOS 上可用。
+- **桌面端需手动编译 Rust 动态库**：桌面端运行前需要先在 `app/rust/` 下执行 `cargo build --release`，生成 `rust_lib.dll`（Windows）/ `.so`（Linux）/ `.dylib`（macOS）。否则 `main.dart` 的 `RustLib.init()` 会报「Failed to load dynamic library ...」，进入启动错误回退页。Android / iOS 构建由 Gradle / Xcode 自动处理 Rust 编译，不需要此手动步骤。
 
 ## BLE 关键约定
 
