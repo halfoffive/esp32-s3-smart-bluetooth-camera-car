@@ -7,6 +7,15 @@
 
 ## [Unreleased]
 
+### Changed
+- feat(app): 重构 App 导航为状态驱动 -- 移除 HomeScreen 的底部 NavigationBar 三 tab（驾驶/设备/设置）与 IndexedStack，改为 _AppRouter 按 leControllerProvider.status 切换：未连接 -> DeviceConnectionScreen（设备连接页，应用入口），已连接 -> ControlScreen（横屏控制页）。设置与「断开连接」藏入 AppBar PopupMenuButton，不再占底部导航。符合「打开应用进入设备连接，连接设备再进入控制页面，设置藏在菜单栏」的交互诉求。
+- feat(app): 控制页改为横屏布局 -- 新增 control_screen.dart，Row 左侧摄像头（含 HUD）+ 遥测条、右侧 300px 固定宽单摇杆列；initState 锁定 landscapeLeft/landscapeRight，dispose 恢复全方向（设备连接/设置页允许竖屏）。适配横屏操控场景。
+- feat(app): 操控面板简化为单摇杆 -- control_panel.dart 移除体感（TiltController）/ 键盘（KeyboardController）模式切换 SegmentedButton 与 ControlMode 枚举，仅保留虚拟摇杆 + 紧急停车按钮。符合「使用单电子摇杆控制」诉求；摇杆节流 / 释放保留方向等逻辑不变。
+- refactor(app): devices_screen.dart 类名 DevicesScreen -> DeviceConnectionScreen，AppBar 标题改「设备连接」并加 PopupMenuButton（设置入口）；原底部 tab 导航已移除。
+
+### Removed
+- refactor(app): control_panel.dart 不再引用 input/tilt_controller.dart / input/keyboard_controller.dart（文件保留待后续 spec 扩展）；main.dart 移除 HomeScreen / _DriveTab / IndexedStack / NavigationBar 相关代码。
+
 ### Added
 - ci(app): `app.yml` 新增实验性 `build-hap` job —— 使用 `gitcode.com/CPF-Flutter/flutter_flutter` SDK fork 构建 HarmonyOS unsigned HAP 包：JDK 17 + OpenHarmony SDK + hvigor/ohpm（npm `@ohos:registry`）+ `flutter create --platforms=ohos` + `flutter build hap --release`；用 `continue-on-error: true` 标注，失败不阻塞 release；release job 的 `needs` 加 `build-hap`，`files` 列表加 `artifacts/app-hap/*`。
 - feat(app): `BleController` 在构造与关键状态转移处（startScan / connect / _onConnectionStateChange / _onConnected / _onDisconnected / stream onError）补 `debugPrint` 诊断日志，便于 `flutter run` 定位驾驶 tab 空白根因；release 构建由 Flutter 框架自动剥离，无副作用。

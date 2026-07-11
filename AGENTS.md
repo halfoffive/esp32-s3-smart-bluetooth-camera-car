@@ -102,6 +102,8 @@ cargo doc --no-deps --open            # 本地浏览
 - `build-hap` job 用 `continue-on-error: true` 标注为实验性 job：OpenHarmony 工具链不确定性高（SDK URL / hvigor 包名 / ohos 平台目录生成），允许失败但记录日志；release job 的 `needs` 列 `build-hap`，因 continue-on-error 失败在 needs 中仍视为 success，release 不会被阻塞。**自 2026-07 起 `build-hap` 改为 `if: github.event_name == 'workflow_dispatch'` 仅手动触发**，不进入 push/PR/tag 自动流水线（鸿蒙工具链下载/安装耗时且不稳定，拖慢常规迭代）；tag 推送时该 job 被 skip，`needs` 视为 success，release 正常产出 android/linux/windows/macos 四平台产物，`files` 保留 `artifacts/app-hap/*` glob 供手动构建产物挂载。
 - unsigned HAP 可直接产出用于内部测试；签名 HAP 需华为开发者证书（.p12 + .p7b profile），属敏感文件，留后续 spec 扩展，CI 不签。
 - Riverpod 2 中 `ref.listen(provider, callback)` 写在 `ConsumerStatefulWidget.build` 顶部虽合法（Riverpod 自动去重重复注册），但推荐改用 `initState` + `ref.listenManual(provider, callback)` 注册副作用型 listener（如弹 SnackBar），避免在 widget build 期间注册 listener 的潜在副作用（build 可能被框架多次调用）。
+- **导航流程**（自 2026-07 重构）：App 不再用底部 `NavigationBar` 多 tab，改为 `_AppRouter`（`main.dart`）按 `bleControllerProvider.select((s) => s.status)` 状态驱动路由：`status == connected` -> `ControlScreen`（横屏控制页），其余 -> `DeviceConnectionScreen`（设备连接页，应用入口）。设置与「断开连接」藏入 AppBar `PopupMenuButton`（`/settings` 命名路由 `pushNamed`）。`ControlScreen.initState` 用 `SystemChrome.setPreferredOrientations([landscapeLeft, landscapeRight])` 锁横屏，`dispose` 恢复 `DeviceOrientation.values`（设备连接/设置页允许竖屏）。`ControlPanel` 仅单摇杆 + 紧急停车，不再有体感/键盘模式切换（`ControlMode` 枚举已移除）。
+- `SystemChrome.setPreferredOrientations` 是全局副作用，离开横屏页**必须**在 `dispose` 恢复全方向，否则设备连接/设置页会被锁成横屏导致表单布局异常。
 
 ## BLE 关键约定
 
@@ -119,7 +121,7 @@ cargo doc --no-deps --open            # 本地浏览
 
 - **Rust 侧**：函数式编程风格，纯函数优先，写适量中文注释。
 - **Flutter 侧**：Material Design 3 **默认配色**（`useMaterial3: true`，不设 `colorSchemeSeed` / 自定义种子色），结构色一律取自 `Theme.of(context).colorScheme`；**深浅色默认跟随系统**（`ThemeMode.system`），用户可在设置页切换 系统/浅色/深色（持久化到 `shared_preferences` 键 `car_theme_mode`）；状态语义色（正常/警告/危险）使用 Material 默认色（`Colors.green`/`Colors.amber`/`colorScheme.error`），由 `HudStatus` 承载，不随主题变化。Riverpod 状态管理。
-  - **M3 原生组件清单**（仅使用以下组件，不引入 `cupertino_icons` 之外的第三方 UI 包）：`FilledButton` / `FilledTonalButton` / `OutlinedButton` / `TextButton` 四档按钮、`NavigationBar` + `NavigationDestination` 底部导航、`SegmentedButton` 分段选择、M3 默认 `TextField`/`TextFormField` outline（**不自定义** `InputDecoration.border` / `fillColor` / `filled`，数值输入用 `_numField` 走默认 outline）。底部导航须配 `IndexedStack` 保活子页状态；`IndexedStack` 应显式设 `sizing: StackFit.expand` 强制子节点填满 body，且每个 tab 子页须各自包 `Scaffold`（结构对称），避免裸 `Column` 在 loose 约束下 sizing 异常导致空白页或 tab 不切换。
+  - **M3 原生组件清单**（仅使用以下组件，不引入 `cupertino_icons` 之外的第三方 UI 包）：`FilledButton` / `FilledTonalButton` / `OutlinedButton` / `TextButton` 四档按钮、`PopupMenuButton` 菜单、`SegmentedButton` 分段选择、M3 默认 `TextField`/`TextFormField` outline（**不自定义** `InputDecoration.border` / `fillColor` / `filled`，数值输入用 `_numField` 走默认 outline）。导航由 `_AppRouter` 状态驱动（非底部 `NavigationBar`），控制页布局用 `Row`（横屏左摄像头右摇杆）；各子页须各自包 `Scaffold`（结构对称），避免裸 `Column` 在 loose 约束下 sizing 异常导致空白页。
   - **默认字体约定**：不引入第三方字体包（`pubspec.yaml` 无 `fonts:` 段，亦不引入 `google_fonts`）；等宽数值走系统 `'monospace'` fallback（`AppTheme.mono()` 设 `fontFamily: 'monospace'` + `fontFamilyFallback: ['monospace']`）；数值/标签文字使用 M3 `textTheme` 角色（`labelSmall` / `titleMedium` 等），不另设 `TextStyle` 颜色与字号硬编码。
 - **固件**：FreeRTOS 多任务，共享数据用 `volatile` + critical section 保护。
 - **提交**：遵循 Conventional Commits。

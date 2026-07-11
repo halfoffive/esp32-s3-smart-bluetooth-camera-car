@@ -1,8 +1,9 @@
 # Smart Car Remote — 智能蓝牙摄像头小车遥控 App
 
 基于 Flutter + Rust（flutter_rust_bridge）的跨端遥控 App，配合 ESP32-S3 智能蓝牙摄像头小车使用。
-通过 BLE 接收车载摄像头画面与遥测数据，下发方向 / 速度指令；手机端支持加速度计体感操控，
-桌面端支持键盘 WASD / 方向键。Rust 侧以纯函数处理 BLE 协议解析、JPEG 分片重组、控制指令编码。
+通过 BLE 接收车载摄像头画面与遥测数据，下发方向 / 速度指令。Rust 侧以纯函数处理 BLE 协议解析、JPEG 分片重组、控制指令编码。
+
+**导航流程**：打开应用 -> 设备连接页（扫描/连接 BLE）-> 连接成功自动进入横屏控制页（摄像头 + 单摇杆）；设置与断开连接藏在控制页 / 设备页的 AppBar 菜单中。
 
 BLE 二进制协议、GATT UUID、帧格式详见仓库根目录 [README](../README.md#ble-通信协议)。
 
@@ -68,12 +69,15 @@ app/
 │   │   ├── car_device.dart       # 设备抽象（名称 ESP32S3_SmartCar、UUID 绑定）
 │   │   └── frame_stream.dart     # NOTIFY 包 → Rust 重组 → JPEG 流
 │   ├── ui/                    # Material Design 3 UI
-│   │   ├── camera_viewport.dart  # 上方摄像头画面 + HUD 覆盖层
-│   │   ├── control_panel.dart    # 操控区容器
+│   │   ├── camera_viewport.dart  # 摄像头画面 + HUD 覆盖层
+│   │   ├── control_screen.dart   # 横屏控制页（摄像头 + 单摇杆，状态驱动路由）
+│   │   ├── control_panel.dart    # 单摇杆 + 紧急停车面板
+│   │   ├── devices_screen.dart   # 设备连接页（应用入口：扫描/连接/断开）
 │   │   ├── joystick.dart         # 虚拟摇杆 widget
 │   │   ├── telemetry_panel.dart  # 左右 RPM / 线速度 / 目标速度 / 电池
-│   │   ├── settings_screen.dart  # PID / T_ramp / 轮径 / 轮距 / 槽数（本地持久化）
-│   │   └── theme.dart            # MD3 主题、调色板、字体配对
+│   │   ├── settings_screen.dart  # 主题 / PID / 物理参数 / WiFi 配置
+│   │   ├── theme_mode_controller.dart  # 主题模式（系统/浅色/深色）持久化
+│   │   └── theme.dart            # MD3 默认主题、HudStatus 语义色、等宽字体
 │   └── input/                 # 输入处理
 │       ├── keyboard_controller.dart  # 桌面 WASD / 方向键
 │       └── tilt_controller.dart      # 手机体感（加速度计 → 目标速度/转向）
@@ -92,11 +96,8 @@ app/
 
 ## 操作模式
 
-- **手机端**：
-  - **摇杆模式**：屏幕虚拟摇杆，方向 + 速度幅度
-  - **体感模式**：加速度计读数映射（前倾前进、左右倾转向），一键切换
-- **桌面端**：
-  - **摇杆模式**：屏幕虚拟摇杆
-  - **键盘模式**：WASD / 方向键，按下立即下发，松开触发平滑减速
-- **紧急停车**：主界面紧急停车按钮，立即发送 stop 指令（speed_pct=0）
-- 输入去抖 + 速率限制，避免 BLE 写入过载
+- **单摇杆控制**：控制页右侧虚拟摇杆，方向 + 速度幅度（模长映射速度百分比）。释放自动回中并发送 stop。
+- **横屏锁定**：控制页 `initState` 锁定 `landscapeLeft/landscapeRight`，离开控制页恢复全方向。
+- **紧急停车**：控制页紧急停车按钮，立即发送 stop 指令（speed_pct=0）。
+- **菜单**：控制页 / 设备连接页 AppBar `PopupMenuButton` 提供设置入口；控制页额外提供「断开连接」。
+- 摇杆 80ms 节流，避免 BLE 写入过载；释放事件不节流，确保及时停车。
