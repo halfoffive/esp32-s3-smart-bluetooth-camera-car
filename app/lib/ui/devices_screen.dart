@@ -17,17 +17,20 @@ import 'package:flutter_reactive_ble/flutter_reactive_ble.dart'
 
 import '../ble/ble_controller.dart';
 
-/// 设备管理页：扫描、连接、断开 BLE 设备。
-class DevicesScreen extends ConsumerWidget {
-  const DevicesScreen({super.key});
+/// 设备连接页（应用入口）：扫描、连接、断开 BLE 设备。
+///
+/// 连接成功后由 _AppRouter 自动切换到控制页。
+/// 设置藏在 AppBar 菜单中。
+class DeviceConnectionScreen extends ConsumerWidget {
+  const DeviceConnectionScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(bleControllerProvider);
     final cs = Theme.of(context).colorScheme;
 
-    // 错误反馈的 SnackBar 监听已上移到 HomeScreen root Scaffold，
-    // 避免设备 tab 不可见时错误 SnackBar 弹到隐藏的 Scaffold。
+    // 错误反馈的 SnackBar 监听已上移到 _AppRouter root Scaffold，
+    // 避免子页不可见时错误 SnackBar 弹到隐藏的 Scaffold。
 
     // 已连接设备名称：从扫描结果按 id 查找（连接后 BleState 仅保留 deviceId）。
     final connectedDevice = state.deviceId == null
@@ -35,7 +38,10 @@ class DevicesScreen extends ConsumerWidget {
         : _findDevice(state.discoveredDevices, state.deviceId!);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('设备')),
+      appBar: AppBar(
+        title: const Text('设备连接'),
+        actions: [_buildMenu(context)],
+      ),
       body: Column(
         children: [
           // ---- 扫描控制区 ----
@@ -144,6 +150,30 @@ class DevicesScreen extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+  /// AppBar 菜单：设置。
+  Widget _buildMenu(BuildContext context) {
+    return PopupMenuButton<String>(
+      icon: const Icon(Icons.more_vert),
+      tooltip: '菜单',
+      onSelected: (value) {
+        if (value == 'settings') {
+          Navigator.pushNamed(context, '/settings');
+        }
+      },
+      itemBuilder: (context) => const [
+        PopupMenuItem(
+          value: 'settings',
+          child: Row(
+            children: [
+              Icon(Icons.settings_outlined),
+              SizedBox(width: 12),
+              Text('设置'),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
