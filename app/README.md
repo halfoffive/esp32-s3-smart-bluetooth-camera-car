@@ -24,15 +24,17 @@ Android、Linux、Windows、macOS（iOS 暂未纳入构建流水线）。
 
 ```bash
 flutter create . --platforms=android,linux,windows,macos --org com.smartcar --project-name smart_car_remote
-flutter_rust_bridge_codegen generate   # 生成 Rust ↔ Dart 绑定
+flutter_rust_bridge_codegen integrate   # 接入 Rust 构建系统（Android CMake/NDK 等）
+flutter_rust_bridge_codegen generate    # 生成 Rust ↔ Dart 绑定
 flutter pub get
 ```
 
 `flutter create .` 会补全各平台原生工程目录，不会覆盖 `lib/` 与 `pubspec.yaml`。
+`integrate` 向 `android/` 注入 CMake + NDK 配置，使 `flutter build apk` 自动编译 `rust/` crate 并打包 `librust_lib.so` 进 APK；缺失该步会导致运行时 `dlopen failed: library 'librust_lib.so' not found`。
 
 ## flutter_rust_bridge 代码生成
 
-Rust 侧接口写在 `rust/src/api.rs` 下，Dart 侧胶水代码由 codegen 生成。修改 Rust 接口后执行：
+Rust 侧接口写在 `rust/src/api/mod.rs` 下，Dart 侧胶水代码由 codegen 生成。修改 Rust 接口后执行：
 
 ```bash
 flutter_rust_bridge_codegen generate
@@ -84,7 +86,7 @@ app/
 ├── rust/                      # Rust 子 crate（flutter_rust_bridge）
 │   ├── src/
 │   │   ├── lib.rs             # crate 入口
-│   │   ├── api.rs             # flutter_rust_bridge 暴露的 API 表面
+│   │   ├── api/mod.rs         # flutter_rust_bridge 暴露的 API 表面
 │   │   ├── ble.rs             # 帧解析（同步头 / 长度 / CRC8 校验）
 │   │   ├── image.rs           # assemble_chunk(state, packet) -> Option<Frame> 分片重组
 │   │   ├── control.rs         # encode_command(dir, turn, speed) -> Vec<u8> 控制指令编码

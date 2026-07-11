@@ -8,6 +8,12 @@
 ## [Unreleased]
 
 ### Fixed
+- fix(ci/app): 修复 Android APK 启动即报 `Failed to load dynamic library "librust_lib.so": dlopen failed: library "librust_lib.so" not found` —— `app.yml` 的 `build-matrix` job 在 `flutter create .`（重新生成 `android/` 目录）之后缺少 `flutter_rust_bridge_codegen integrate` 步骤，导致 Android Gradle 未注入 CMake + NDK Rust 编译配置，`flutter build apk` 不编译 `rust/` crate，APK 不含 `librust_lib.so`。新增「Integrate flutter_rust_bridge (Android)」步骤（`if: matrix.flutter_target == 'apk'`），在 `flutter create .` 之后、compileSdk patch 之前执行，使 Gradle 通过 `externalNativeBuild` 自动编译 Rust crate 并打包 `lib/<abi>/librust_lib.so` 进 APK。桌面平台沿用既有手动 `cargo build` + copy 步骤，不受影响。
+- fix(app/rust): 修复 `flutter_rust_bridge_codegen integrate` 导致的 E0761 重复模块错误 —— `integrate` 以模板覆盖方式注入 `rust_builder/` 时会创建 `src/api/mod.rs`，与既有平铺 `src/api.rs` 并存触发 `file for module 'api' found at both`。将 `src/api.rs` 迁移为目录式 `src/api/mod.rs`，使 `integrate` 检测到文件已存在而跳过；同时在 CI 步骤中清理模板演示文件 `src/api/simple.rs` 与 `lib/src/rust/api/simple.dart`。
+- fix(ci/app): 修复 `integrate` 覆写 `lib/main.dart` 导致 `flutter build apk` 失败 —— `flutter_rust_bridge_codegen integrate` 会将 `lib/main.dart` 原内容注释掉并注入模板 demo 代码（import `simple.dart` + 调用 `greet`），CI 删除 `simple.dart` 后 `main.dart` 仍引用它导致编译报 `No such file or directory`。在 `integrate` 后新增 `git checkout -- lib/main.dart` 恢复真实入口文件，并清理 `integration_test/simple_test.dart` 与 `test_driver/integration_test.dart` 模板演示文件。
+- fix(ci/app): 修复 cargokit `plugin.gradle` 在 Gradle 9 上报 `Could not find method exec()` —— Gradle 9（Flutter 3.44+ stable 捆绑）移除了 `Project.exec()`，cargokit 的 `rust_builder/cargokit/gradle/plugin.gradle` 仍在使用 `project.exec {}`。在 `integrate` 后用 Python 脚本 patch 该文件，注入 `ExecOperations` 服务（`@Inject abstract ExecOperations getExecOperations()`），将 `project.exec {}` 替换为 `getExecOperations().exec {}`。
+
+### Fixed
 - fix(ci/app): 修复 Windows runner 上 `Install cargo-binstall` 步骤失败 —— `cargo-bins/cargo-binstall@v1.9.0`（以及 `@main`）的 PowerShell 自安装脚本在 `windows-latest` 上跑 `iwr` 抛 `Object reference not set to an instance of an object`；改用广泛适配三平台的 `taiki-e/install-action@v2.9.4` + `with.tool: cargo-binstall` 装 binstall 本体，两个 job（`cargo-doc` / `build-matrix`）统一。
 
 ### Fixed

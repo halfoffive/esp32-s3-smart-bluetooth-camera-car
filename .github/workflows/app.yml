@@ -181,6 +181,53 @@ jobs:
       - name: Bootstrap Flutter platforms
         run: cd app && flutter create . --platforms=android,linux,windows,macos --org com.smartcar --project-name smart_car_remote
 
+      # 8.5. 接入 flutter_rust_bridge 构建系统集成（仅 Android APK 需要）
+      #      flutter create . 重新生成的 android/ 目录不包含 Rust 编译配置，
+      #      须由 integrate 命令注入 CMake + NDK 集成，使 flutter build apk
+      #      能自动编译 rust/ crate 并将 librust_lib.so 打包进 APK。
+      #      修复运行时 "Failed to load dynamic library 'librust_lib.so':
+      #      dlopen failed: library 'librust_lib.so' not found"。
+      #      桌面平台沿用下方手动 cargo build + copy 步骤，不在此处接入。
+      - name: Integrate flutter_rust_bridge (Android)
+        if: matrix.flutter_target == 'apk'
+        run: |
+          cd app && flutter_rust_bridge_codegen integrate
+          # integrate 会覆写 lib/main.dart（将原内容注释掉，注入模板 demo 代码
+          # import simple.dart + 调用 greet），须从版本控制恢复真实入口文件。
+          git checkout -- lib/main.dart
+          # 清理 integrate 生成的模板演示文件：simple.rs/simple.dart 未在项目中使用，
+          # integration_test/simple_test.dart 与 test_driver/integration_test.dart
+          # 引用 simple.dart，残留会导致编译或测试失败。
+          rm -f rust/src/api/simple.rs lib/src/rust/api/simple.dart \
+                integration_test/simple_test.dart test_driver/integration_test.dart
+
+          # 8.6. patch cargokit plugin.gradle：Gradle 9 移除了 Project.exec()，
+          #      cargokit 的 plugin.gradle 仍在使用 project.exec {}（line 63/68），
+          #      导致 "Could not find method exec()" 构建失败。
+          #      修复：注入 ExecOperations 服务，用 execOperations.exec {} 替代 project.exec {}。
+          python3 - rust_builder/cargokit/gradle/plugin.gradle <<'PY'
+          import sys, re
+          path = sys.argv[1]
+          with open(path, 'r') as f:
+              text = f.read()
+          # 1) 添加 javax.inject.Inject 导入（在现有 import 块之后）
+          if 'javax.inject.Inject' not in text:
+              text = text.replace(
+                  "import org.apache.tools.ant.taskdefs.condition.Os\n",
+                  "import org.apache.tools.ant.taskdefs.condition.Os\nimport javax.inject.Inject\nimport org.gradle.process.ExecOperations\n",
+              )
+          # 2) 在 CargoKitBuildTask 类中注入 ExecOperations（在 @Input 字段之后、@TaskAction 之前）
+          if 'getExecOperations' not in text:
+              text = text.replace(
+                  "    @TaskAction\n",
+                  "    @Inject\n    abstract ExecOperations getExecOperations()\n\n    @TaskAction\n",
+              )
+          # 3) 将 project.exec { 替换为 getExecOperations().exec {
+          text = text.replace("project.exec {", "getExecOperations().exec {")
+          with open(path, 'w') as f:
+              f.write(text)
+          PY
+
       # 9. patch Android compileSdk 至 35（仅 Android 构建需要）：flutter_blue_plus 依赖 AndroidX 1.7.x
       #      要求 compileSdk ≥ 34；android/ 由 flutter create 生成、不在版本控制中，须在 CI 内 patch
       - name: Patch Android compileSdk
