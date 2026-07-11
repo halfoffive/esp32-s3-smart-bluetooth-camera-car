@@ -36,10 +36,10 @@
   - [x] 6.5: `CHANGELOG.md` `[Unreleased]` 下按 Removed / Changed / Fixed 归类记录本次变更
   - [x] 6.6: `README.md` 移除 HAP 构建相关说明（如有，检查后决定是否修改）
 
-- [ ] Task 7: 提交与 PR
+- [x] Task 7: 提交与 PR
   - [x] 7.1: 按 Conventional Commits 拆分多 commit 提交（ci: drop hap / ci: use cargo-binstall / ci: bundle rust cdylib / docs: sync 等）
-  - [ ] 7.2: 推送到远程分支
-  - [ ] 7.3: 用 `gh pr create` 创建 PR，标题与 body 遵循 Conventional Commits
+  - [x] 7.2: 推送到远程分支
+  - [x] 7.3: 用 `gh pr create` 创建 PR，标题与 body 遵循 Conventional Commits（PR #9）
 
 # Task Dependencies
 - Task 2 依赖 Task 1（同一文件编辑，先删 HAP job 再改其他步骤更清晰）
