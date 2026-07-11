@@ -12,6 +12,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'ble/ble_controller.dart';
+import 'src/rust/frb_generated.dart';
 import 'ui/control_screen.dart';
 import 'ui/devices_screen.dart';
 import 'ui/settings_screen.dart';
@@ -20,17 +21,40 @@ import 'ui/theme_mode_controller.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // 启动时恢复用户上次选择的主题模式（默认跟随系统）
+
+  // 初始化失败信息；若任意启动步骤抛异常，仍尝试运行 App 并显示回退界面，
+  // 避免空白页。
+  String? initError;
   final container = ProviderContainer();
-  await container.read(themeModeProvider.notifier).load();
+
+  // flutter_rust_bridge v2 要求：在调用任何 Rust 函数前先初始化桥接。
+  try {
+    await RustLib.init();
+  } catch (e) {
+    initError = 'Rust 桥接初始化失败：$e';
+  }
+
+  // 恢复用户上次选择的主题模式（默认跟随系统）。异常不应阻止 App 启动。
+  try {
+    await container.read(themeModeProvider.notifier).load();
+  } catch (e) {
+    initError ??= '主题模式加载失败：$e';
+  }
+
+  // 全局构建错误回退：任何未捕获的 widget 构建异常都显示 Material 界面，
+  // 而不是 release 模式下的空白屏或 debug 模式下的红屏。
+  ErrorWidget.builder = (details) => _ErrorFallback(details: details);
+
   runApp(UncontrolledProviderScope(
     container: container,
-    child: const SmartCarApp(),
+    child: SmartCarApp(initError: initError),
   ));
 }
 
 class SmartCarApp extends ConsumerWidget {
-  const SmartCarApp({super.key});
+  final String? initError;
+
+  const SmartCarApp({super.key, this.initError});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -41,7 +65,9 @@ class SmartCarApp extends ConsumerWidget {
       darkTheme: AppTheme.dark(),
       themeMode: themeMode,
       debugShowCheckedModeBanner: false,
-      home: const _AppRouter(),
+      home: initError != null
+          ? _InitErrorScreen(message: initError!)
+          : const _AppRouter(),
       routes: {
         '/settings': (context) => const SettingsScreen(),
       },
@@ -94,5 +120,96 @@ class _AppRouterState extends ConsumerState<_AppRouter> {
       return const ControlScreen();
     }
     return const DeviceConnectionScreen();
+  }
+}
+
+/// 启动错误回退页：当 Rust 桥接或主题模式初始化失败时显示。
+///
+/// 在 [MaterialApp] 内部使用，因此可以访问主题。
+class _InitErrorScreen extends StatelessWidget {
+  final String message;
+
+  const _InitErrorScreen({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Scaffold(
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Icon(
+                Icons.error_outline,
+                size: 64,
+                color: colorScheme.error,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                '应用启动失败',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.headlineSmall,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                message,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 全局构建错误回退：不依赖外部主题，确保在任何构建阶段都能渲染。
+class _ErrorFallback extends StatelessWidget {
+  final FlutterErrorDetails details;
+
+  const _ErrorFallback({required this.details});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Icon(
+                Icons.broken_image_outlined,
+                size: 48,
+                color: Colors.orange,
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                '界面渲染出错',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                details.exceptionAsString(),
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 14),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
