@@ -9,11 +9,8 @@
 //   errorMessage != null → SnackBar 弹出错误（ref.listen，不在 build 内副作用）
 
 import 'package:flutter/material.dart';
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-// 仅需 DiscoveredDevice 类型；隐藏 flutter_reactive_ble 自带的 ConnectionStatus，
-// 让本文件统一使用 ble_controller.dart 中定义的 ConnectionStatus enum。
-import 'package:flutter_reactive_ble/flutter_reactive_ble.dart'
-    hide ConnectionStatus;
 
 import '../ble/ble_controller.dart';
 
@@ -86,7 +83,7 @@ class DeviceConnectionScreen extends ConsumerWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              connectedDevice?.name ?? '已连接设备',
+                              _displayName(connectedDevice) ?? '已连接设备',
                               style: const TextStyle(
                                 fontWeight: FontWeight.w600,
                               ),
@@ -134,8 +131,8 @@ class DeviceConnectionScreen extends ConsumerWidget {
                           state.status == ConnectionStatus.scanning ||
                               state.status == ConnectionStatus.connected;
                       return ListTile(
-                        title: Text(device.name),
-                        subtitle: Text(device.id),
+                        title: Text(_displayName(device) ?? '未知设备'),
+                        subtitle: Text(device.device.remoteId.str),
                         trailing: FilledButton.tonal(
                           onPressed: connectDisabled
                               ? null
@@ -178,10 +175,18 @@ class DeviceConnectionScreen extends ConsumerWidget {
   }
 }
 
-/// 在已发现设备列表中按 id 查找设备。
-DiscoveredDevice? _findDevice(List<DiscoveredDevice> devices, String id) {
+/// 在已发现设备列表中按 remoteId 查找扫描结果。
+ScanResult? _findDevice(List<ScanResult> devices, String id) {
   for (final d in devices) {
-    if (d.id == id) return d;
+    if (d.device.remoteId.str == id) return d;
   }
   return null;
+}
+
+/// 优先使用广播名，回退到系统缓存名。
+String? _displayName(ScanResult? result) {
+  if (result == null) return null;
+  return result.advertisementData.advName.isNotEmpty
+      ? result.advertisementData.advName
+      : result.device.platformName;
 }

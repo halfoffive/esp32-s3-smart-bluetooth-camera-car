@@ -42,6 +42,16 @@ flutter_rust_bridge_codegen generate
 flutter pub get
 ```
 
+### App 桌面端本地开发注意事项
+
+- 桌面端（Windows/Linux/macOS）运行前，需要先在 `app/rust/` 下编译 Rust crate，生成 `rust_lib.dll` / `.so` / `.dylib`：
+  ```bash
+  cd app/rust
+  cargo build --release
+  ```
+  否则 `main.dart` 中 `RustLib.init()` 会报「Failed to load dynamic library 'rust_lib.dll'」等动态库找不到错误，触发启动错误回退页。
+- BLE 包已迁移到 `flutter_blue_plus`，原生支持 Android / iOS / Linux / macOS，Windows 通过 federated 插件 `flutter_blue_plus_winrt` 支持。桌面端运行前同样需要先编译 Rust 动态库（见上条），之后即可扫描/连接/控制。
+
 `android/`、`linux/`、`windows/`、`macos/` 不在版本控制中，由 `flutter create .` 补齐，不会覆盖 `lib/` 与 `pubspec.yaml`。
 
 ### App 运行与构建
@@ -69,14 +79,15 @@ cargo doc --no-deps --open            # 本地浏览
 - CI 里的 `cargo doc` 使用 `--all-features`，本地生成文档时如需对齐可加上该参数。
 - 固件使用自定义分区表 `partitions.csv`，启用 `qio_opi` PSRAM，摄像头模型固定为 `CAMERA_MODEL_ESP32S3_EYE`。
 - 本地与 CI 均使用 `esptool.py --chip esp32s3 merge-bin` 合并四镜像（bootloader(0x0) + partitions(0x8000) + boot_app0(0xe000) + firmware(0x10000)）为 `firmware-merged.bin`（pioarduino 社区平台未注册 `pio run -t mergebin` SCons 目标，会报 `Do not know how to make File target 'mergebin'`）。
-- `flutter_rust_bridge_codegen` 是 crates.io 上的 Rust crate（`cargo install`），不是 pub.dev 的 Dart 包；`pubspec.yaml` 中不得将其列为 `dev_dependency`，否则 `flutter pub get` 会失败。CI 通过 `cargo install` 安装（见 `.github/workflows/app.yml`）。
+- `flutter_rust_bridge_codegen` 是 crates.io 上的 Rust crate（`cargo install`），不是 pub.dev 的 Dart 包；`pubspec.yaml` 中不得将其列为 `dev_dependency`，否则 `flutter pub get` 会失败。CI 通过 [`cargo-binstall`](https://github.com/cargo-bins/cargo-binstall) 拉预编译二进制安装（见 `.github/workflows/app.yml` 中 `Install cargo tools (binstall)` 步骤），远快于 `cargo install`。
+- **CI 安装 cargo bin 一律走 binstall**：`.github/workflows/app.yml` 中 `cargo-expand` 与 `flutter_rust_bridge_codegen` 都用 `cargo binstall -y --force <crate>@<version>`（先 `taiki-e/install-action@v2.9.4` 装 binstall 本体，**必须 pin 到具体 tag**；不要用 `cargo-bins/cargo-binstall@*` —— 后者的 PowerShell 自安装脚本在 `windows-latest` 上会报 `iwr : Object reference not set to an instance of an object` 而失败），秒级完成；不要回退到 `cargo install --locked`（从源码编译数分钟）。若某个 crate 在 crates.io 未发布 binstall 兼容的预编译产物，binstall 会自动 fallback 到 `cargo install`。
 - frb v2 codegen 执行时需要 `cargo-expand`（`cargo install cargo-expand`），CI 中应在 `flutter_rust_bridge_codegen generate` 之前预装，避免自动安装的不确定性。
 - frb v2 生成的 Dart 代码依赖 `freezed_annotation`（dependencies）和 `freezed`/`build_runner`（dev_dependencies），`pubspec.yaml` 中必须声明，否则 codegen 报 `MissingDep`。
 - Dart `pubspec.yaml` 的版本约束**不支持** Cargo 式的 `=` 前缀。精确版本直接写 `x.y.z`（如 `flutter_rust_bridge: 2.12.0`），兼容更新用 `^x.y.z`；写成 `=2.12.0` 会导致 `flutter pub get` 报 `Invalid version constraint`。
 - Arduino-ESP32 core 3.x 移除了 v2.x 的 LEDC API（`ledcSetup`/`ledcAttachPin`/`ledcWrite(channel, duty)` 及 `LEDC_CHANNEL_*` 宏）；须使用 `ledcAttach(pin, freq, resolution)` + `ledcWrite(pin, duty)`。注意 `esp_camera` 的 `camera_config_t.ledc_channel` 仍用 ESP-IDF 的 `ledc_channel_t` 枚举（`LEDC_CHANNEL_0` 等），不受影响。
 - `firmware/platformio.ini` 必须显式锁定 pioarduino 社区平台 URL（`https://github.com/pioarduino/platform-espressif32/releases/download/stable/platform-espressif32.zip`），**不可回退**到 `platform = espressif32`：官方 platform 仍只捆绑 Arduino-ESP32 core 2.0.17，与 `motor_task.cpp` 的 v3.x LEDC API 不兼容，CI 编译会失败。
 - `#[frb(sync)]` / `#[frb(opaque)]` 等 frb v2 属性宏不会由 codegen 自动注入到用户源文件，使用该属性的模块（如 `api.rs` / `image.rs`）必须显式 `use flutter_rust_bridge::frb;`，否则 `cargo doc --no-deps --all-features` 报 `cannot find attribute 'frb' in this scope`。
-- CI 中 `flutter create .` 生成的 `android/app/build.gradle` 默认 `compileSdk = 33`，而 `flutter_reactive_ble` 的 `:reactive_ble_mobile` 依赖 AndroidX 1.7.x 要求 compileSdk ≥ 34。由于 `android/` 不在版本控制中，必须在 `flutter create .` 之后用 `sed` 提升 compileSdk 至 35，并向 `android/build.gradle` 注入 `subprojects` 块强制所有插件模块统一 compileSdk 35（见 `.github/workflows/app.yml` 的 "Patch Android compileSdk" 步骤，仅在 build-matrix 的 apk 条目执行，见 `if: matrix.flutter_target == 'apk'`）。
+- CI 中 `flutter create .` 生成的 `android/app/build.gradle` 默认 `compileSdk = 33`，而 `flutter_blue_plus` 的 `:flutter_blue_plus_android` 依赖 AndroidX 1.7.x 要求 compileSdk ≥ 34。由于 `android/` 不在版本控制中，必须在 `flutter create .` 之后用 `sed` 提升 compileSdk 至 35，并向 `android/build.gradle` 注入 `subprojects` 块强制所有插件模块统一 compileSdk 35（见 `.github/workflows/app.yml` 的 "Patch Android compileSdk" 步骤，仅在 build-matrix 的 apk 条目执行，见 `if: matrix.flutter_target == 'apk'`）。
 - `app/android/`、`app/linux/`、`app/macos/`、`app/windows/` 不应提交 `.gitkeep` 等任何文件到版本控制；否则 CI checkout 后这些目录非空，`flutter create .` 会将其识别为已有平台目录，可能不重新生成 `android/app/build.gradle` 等原生文件。
 - CI 中 Android compileSdk patch 应使用 `if: matrix.flutter_target == 'apk'` 限制，避免在 `cargo-doc` job 与桌面平台（linux/windows/macos）矩阵条目运行。Patch 步骤须兼容 Flutter 3.29+ 的 `build.gradle.kts`（同时检查 `build.gradle` 与 `build.gradle.kts`），并加 `shell: bash`。
 - 跨 FFI 的 Rust 函数不得用 `assert`/`panic` 校验参数，应返回 `Result<T, String>`，否则 panic 会终止整个 Flutter 进程。
@@ -93,19 +104,20 @@ cargo doc --no-deps --open            # 本地浏览
 - BLE 协议新增 `CMD_SET_PARAMS=0x04` / `CMD_SET_WIFI=0x05` 复用控制 WRITE 特征（`...def2`），不新增 GATT 特征；`ble_task.cpp` `ControlCharacteristicCallbacks::onWrite` 中 `proto_validate` 通过后按 `buf[4]`（CMD 字节）分发，未知 CMD 直接丢弃。
 - 固件 PID/物理参数从 `config.h` 编译期宏改为运行时 `static volatile` 变量 + setter（`motor_set_pid` / `motor_set_ramp` / `motor_set_physical` / `speed_sensor_set_physical`），NVS 持久化用 Arduino-ESP32 内置 `Preferences.h`（`params_store.{h,cpp}` / `wifi_config.{h,cpp}`）。首次启动无 NVS 时回退 `config.h` 宏默认，行为与原版一致；`motor_init` / `speed_sensor_init` 在初始化时从 NVS 加载。
 - 修改 Rust 侧暴露给 Dart 的接口（如新增 `encode_set_params` / `encode_set_wifi`）后必须重跑 `flutter_rust_bridge_codegen generate`；CI 由 `app.yml` 的「Generate flutter_rust_bridge bindings」步骤自动生成。本地若无 `flutter` 命令，仅改源代码后由 CI 兜底（不要手改 `frb_generated.dart` / `frb_generated.rs`）。**本地开发时**：`app/lib/src/rust/` 已在 `.gitignore`，Dart 绑定不入版本库；Rust 新增函数后若忘记跑 codegen，`ble_controller.dart` 等调用点 `undefined_function`，**整个 Dart 编译失败会让 hot reload 静默不生效**，UI 表现为「按钮点了不换页 / tab 切换无反应」等**假 UI bug**，容易被误认为 widget/listener 问题。表现为运行时无反应先看 LSP 是否有 `undefined_function` 或 codegen 产物是否过期。
+- **frb v2 必须显式初始化**：`app/lib/main.dart` 必须在 `runApp` 之前调用 `await RustLib.init();`（由生成的 `app/lib/src/rust/frb_generated.dart` 提供），否则 Rust 动态库未加载，首次调用 `encodeControl` / `encodeSetParams` / `encodeSetWifi` 等函数时会抛「RustLib not initialized」。这不会直接让启动页空白（`BleController` 构造是干净的），但会让「点击扫描/下发参数」后立即崩溃，表象仍像 UI 问题。
+- **异步初始化异常保护**：`main()` 中 `await container.read(themeModeProvider.notifier).load()` 等插件初始化步骤必须用 try/catch 保护，否则 `SharedPreferences`（或其它插件）初始化失败会直接阻止 `runApp`，用户看到的就是**空白页**。初始化失败后仍应调用 `runApp` 并显示错误回退界面。
+- **全局构建错误回退**：生产环境务必设置 `ErrorWidget.builder`（或在 `MaterialApp.builder` 中兜底），将未捕获的 widget 构建异常渲染成可见的 Material 错误页。Flutter 在 release 模式下遇到未处理构建错误会显示空白屏，debug 模式才显示红屏；没有回退则用户/开发者都无从定位。
 - `SetParamsPayload` 在 Rust 与固件两端均须 `#pragma pack(1)` / 21 字节小端对齐，二进制布局必须严格一致（字段顺序：`kp f32` + `ki f32` + `kd f32` + `ramp_ms u32` + `wheel_dia_mm u16` + `wheel_base_mm u16` + `enc_slots u8` = 4+4+4+4+2+2+1 = 21 字节）。固件端用 `PROTO_STATIC_ASSERT(sizeof(struct SetParamsPayload) == 21, ...)` 校验；Rust 端 `#[repr(C, packed)]` 派生 + 编码后 `assert_eq!(bytes.len(), 21)` 单测。
-- HarmonyOS HAP 构建使用 `gitcode.com/CPF-Flutter/flutter_flutter` SDK fork（OpenHarmony 适配版，提供 `flutter build hap` 命令），**不可**用标准 `subosito/flutter-action`（后者不包含 ohos 平台目录模板与 `flutter build hap` 子命令）。CI 中用 `git clone --depth 1 <url> "$HOME/flutter_ohos"` + `echo "$HOME/flutter_ohos/bin" >> $GITHUB_PATH`。
-- 该 gitcode fork 默认分支的 `version` 文件可能写死为 `0.0.0-unknown`，会导致 `flutter create --platforms=ohos` 内部 `flutter pub get` 因 `pubspec.yaml` 的 `flutter: '>=3.27.0'` 约束失败。CI 须在 clone 后写入真实版本号（如 `3.27.4`）到 `$HOME/flutter_ohos/version`，并同步修正 `bin/cache/flutter.version.json` 中的占位。
-- **关键陷阱**：gitcode fork 用 `git describe --tags` 推导版本，`--depth 1` 克隆无 tag 会回退常量 `0.0.0-unknown`，**且 bootstrap 会把 `0.0.0-unknown` 写回根 `version` 文件（覆盖此前写入）并新建 `bin/cache/flutter.version.json`**。因此"先写 version 文件再 bootstrap"无效。正确顺序：**先 `flutter --version` 触发 bootstrap，再 patch `bin/cache/flutter.version.json` 与 `version` 文件**。patch 后后续命令因缓存存在且 `!fetchTags` 直接读缓存，不再覆盖。
-- fork 的 `flutter create --platforms=ohos` 会硬性校验 OpenHarmony SDK 结构（`validApi10/11SdkDirectory`），无 SDK 或空目录会 `throwToolExit('No Hmos SDK found ...')`。CI 须在 create 前下载结构合法的 SDK（含 `openharmony/toolchains/hdc` 等目录）并设置 `HOS_SDK_HOME` / `OHOS_SDK_HOME` / `DEVECO_SDK_HOME` 环境变量。SDK 公开镜像：`https://repo.huaweicloud.com/openharmony/os/4.0-Release/ohos-sdk-linux.tar.gz`。
-- OpenHarmony 工具链要求 JDK 17（hvigor 强制，低于 17 直接失败）+ glibc 2.28+（ubuntu-22.04+ 满足）。
-- OpenHarmony SDK / hvigor / ohpm 安装：SDK 从 `https://repo.harmonyos.com/os/ohos-sdk/` 公开下载（版本号随 HarmonyOS Release 变化）；hvigor/ohpm 走 npm 全局，须先 `npm config set @ohos:registry https://repo.harmonyos.com/npm/` 再 `npm install -g @ohos/hvigor @ohos/ohpm`。
-- `aarch64-unknown-linux-ohos` Rust target **不在 rustup 官方 target 列表**（截至 2025），CI 中先用 `rustup target add aarch64-unknown-linux-ohos 2>/dev/null || rustup target add aarch64-linux-android` fallback；待 rustup 官方支持后移除 fallback。TODO 待社区支持。
-- `build-hap` job 用 `continue-on-error: true` 标注为实验性 job：OpenHarmony 工具链不确定性高（SDK URL / hvigor 包名 / ohos 平台目录生成），允许失败但记录日志；release job 的 `needs` 列 `build-hap`，因 continue-on-error 失败在 needs 中仍视为 success，release 不会被阻塞。**自 2026-07 起 `build-hap` 改为 `if: github.event_name == 'workflow_dispatch'` 仅手动触发**，不进入 push/PR/tag 自动流水线（鸿蒙工具链下载/安装耗时且不稳定，拖慢常规迭代）；tag 推送时该 job 被 skip，`needs` 视为 success，release 正常产出 android/linux/windows/macos 四平台产物，`files` 保留 `artifacts/app-hap/*` glob 供手动构建产物挂载。
-- unsigned HAP 可直接产出用于内部测试；签名 HAP 需华为开发者证书（.p12 + .p7b profile），属敏感文件，留后续 spec 扩展，CI 不签。
+- HarmonyOS HAP 构建**已弃用**（自 2026-07）：`.github/workflows/app.yml` 不再包含 `build-hap` job。原因：`gitcode.com/CPF-Flutter/flutter_flutter` fork 工具链链路（version 占位 / OpenHarmony SDK 结构校验 / hvigor 包名 / ohpm registry / rustup target 缺失）不稳定，且鸿蒙 SDK 下载动辄数百 MB 拖慢流水线；即便设 `workflow_dispatch` 手动触发也基本无实用价值。如需 HAP，请本地按 `.trae/specs/fix-drive-blank-and-add-hap-ci/` 历史 spec 手动搭链。
+- **CI 桌面产物必须内嵌 rust_lib**：Flutter 桌面（Windows/Linux/macOS）`flutter build` 不感知外部 Cargo crate，默认不复制 `rust_lib.dll`/`.so`/`.dylib` 到 release bundle，用户直接跑二进制会报 `Failed to load dynamic library 'rust_lib.dll' ... (error code: 126)` 并进入 `_InitErrorScreen`。`app.yml` 的 `build-matrix` job 在 `flutter build <desktop>` 之后必须显式 `cargo build --release --target <rust_target>` + 拷贝到 release bundle：Linux `librust_lib.so` → `bundle/lib/`；Windows `rust_lib.dll` → `runner/Release/`（可执行文件同目录）；macOS `librust_lib.dylib` → `<app>.app/Contents/Frameworks/`。Android 由 Gradle NDK 插件自动编 Rust；iOS 由 Xcode 处理。
 - Riverpod 2 中 `ref.listen(provider, callback)` 写在 `ConsumerStatefulWidget.build` 顶部虽合法（Riverpod 自动去重重复注册），但推荐改用 `initState` + `ref.listenManual(provider, callback)` 注册副作用型 listener（如弹 SnackBar），避免在 widget build 期间注册 listener 的潜在副作用（build 可能被框架多次调用）。
 - **导航流程**（自 2026-07 重构）：App 不再用底部 `NavigationBar` 多 tab，改为 `_AppRouter`（`main.dart`）按 `bleControllerProvider.select((s) => s.status)` 状态驱动路由：`status == connected` -> `ControlScreen`（横屏控制页），其余 -> `DeviceConnectionScreen`（设备连接页，应用入口）。设置与「断开连接」藏入 AppBar `PopupMenuButton`（`/settings` 命名路由 `pushNamed`）。`ControlScreen.initState` 用 `SystemChrome.setPreferredOrientations([landscapeLeft, landscapeRight])` 锁横屏，`dispose` 恢复 `DeviceOrientation.values`（设备连接/设置页允许竖屏）。`ControlPanel` 仅单摇杆 + 紧急停车，不再有体感/键盘模式切换（`ControlMode` 枚举已移除）。
 - `SystemChrome.setPreferredOrientations` 是全局副作用，离开横屏页**必须**在 `dispose` 恢复全方向，否则设备连接/设置页会被锁成横屏导致表单布局异常。
+
+## 已知限制
+
+- **桌面端 BLE 现已可用**：BLE 包已迁移到 `flutter_blue_plus`，原生支持 Android / iOS / Linux / macOS，Windows 通过 federated 插件 `flutter_blue_plus_winrt` 支持。桌面端运行前仍需先编译 Rust 动态库（见上条），之后即可扫描/连接/控制。
+- **桌面端需手动编译 Rust 动态库**：桌面端运行前需要先在 `app/rust/` 下执行 `cargo build --release`，生成 `rust_lib.dll`（Windows）/ `.so`（Linux）/ `.dylib`（macOS）。否则 `main.dart` 的 `RustLib.init()` 会报「Failed to load dynamic library ...」，进入启动错误回退页。Android / iOS 构建由 Gradle / Xcode 自动处理 Rust 编译，不需要此手动步骤。
 
 ## BLE 关键约定
 
