@@ -43,6 +43,13 @@ class AppTheme {
       color: color,
     );
   }
+
+  // Material 3 圆角 token。统一在此处声明，供卡片 / 弹层 / 段位复用，
+  // 避免各页面重复硬编码散落的 BorderRadius.circular(N)。
+  static const double radiusSm = 8.0;
+  static const double radiusMd = 12.0;
+  static const double radiusLg = 16.0;
+  static const double radiusXl = 20.0;
 }
 
 /// 遥测 / 连接状态语义色。

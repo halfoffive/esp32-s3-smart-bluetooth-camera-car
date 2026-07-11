@@ -7,6 +7,20 @@
 
 ## [Unreleased]
 
+### Fixed
+- fix(ble): Windows 上蓝牙关闭或飞行模式时 `FlutterBluePlus.adapterState` 流抛异常导致 App 卡死/冻结 —— `BleController` 构造时注册 `onError`，回退为 `BluetoothAdapterState.unknown` 并中文提示用户；`DeviceConnectionScreen` 将 `unknown` 与 `off` 同等处理，顶部显示 `MaterialBanner`。
+- fix(ble): Android 权限请求流程加固 —— 新增 `BlePermissions.isNotDeclaredInManifest()` 启发式，当 `bluetoothScan` 与 `location` 同时 `permanentlyDenied` 时提示运行 `scripts/setup-android.sh` / `scripts/setup-android.ps1`；`DeviceConnectionScreen` 改为 `ConsumerStatefulWidget`，在 `initState` 的 `addPostFrameCallback` 中主动请求权限，避免首次进入设备页时 banner 提示滞后。
+- fix(ui): 将隐式动画替换为显式 `AnimationController` 避免掉帧 —— `joystick.dart` 摇杆按下动画改用 `AnimatedBuilder`；`devices_screen.dart` 列表项 stagger 与已连接卡片改用 `FadeTransition` + `SlideTransition`；`settings_screen.dart` 表单 stagger 改用显式 controller。
+- fix(app): `camera_viewport.dart` 的 `Image.memory` 外包裹 `RepaintBoundary`，减少 HUD 覆盖层重绘导致的画面抖动。
+
+### Changed
+- perf(ui): 设备页、控制页、设置页视觉打磨 —— 设备列表项与空状态使用 `Card` + `HudStatus.active` 状态点；摇杆底圆增加 `RadialGradient` 渐变与 `drawShadow` 阴影；遥测单元格改用 `surfaceContainerLow` 卡片；设置页四段表单分别包裹 `surfaceContainerLow` 圆角卡片。
+- chore(app): `AppTheme` 新增共享 M3 圆角常量 `radiusSm` / `radiusMd` / `radiusLg` / `radiusXl`，供卡片 / 弹层 / 段位复用。
+
+### Added
+- feat(app): Windows 蓝牙设置深链 —— 设备连接页 banner 在 Windows 平台提供「打开蓝牙设置」按钮，调用 `Process.run('cmd', ['/c', 'start', 'ms-settings:bluetooth'])` 打开系统蓝牙设置；Android 提供「开启蓝牙」，iOS / macOS / Linux 提示去系统设置。
+- feat(dev): 新增本地 Android 开发 setup 脚本 `scripts/setup-android.sh` 与 `scripts/setup-android.ps1`，首次拉取后一键生成并 patch `app/android/`（`flutter_rust_bridge_codegen integrate` / 恢复 `lib/main.dart` / compileSdk 35 / 权限注入 / cargokit Gradle 9 兼容）。
+
 ### Added
 - feat(app): 启动屏与页面转场动画 —— `main.dart` 新增 `_SplashScreen`（蓝牙图标缩放、标题淡入、进度条，默认 1200ms）与 `_AppWithSplash` 门控，启动动画结束后进入 `_AppRouter`；`_AppRouter` 改用 `AnimatedSwitcher` 实现设备连接页/控制页之间的横向滑入+淡入淡出切换（300ms，子页带 `ValueKey` 区分）。设置页改为底部滑入的 `PageRouteBuilder`（新增 `app/lib/ui/settings_route.dart` 公共路由），`devices_screen.dart` 与 `control_screen.dart` 的 AppBar 菜单统一调用 `buildSettingsRoute()` 打开，并移除 `/settings` 命名路由。
 - feat(app): 设备页动效 —— `devices_screen.dart` 扫描时显示 `_RadarPulse` 雷达脉冲动画；已发现设备列表项 stagger 淡入上移（60ms 间隔）；已连接设备卡片从顶部滑入+淡入；「扫描设备」按钮按下时缩放反馈；蓝牙关闭时顶部显示 `MaterialBanner` 提示开启（Android 可调 `FlutterBluePlus.turnOn()`，iOS 引导至系统设置）。

@@ -148,128 +148,190 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 // 外观段
                 _FadeInUp(
                   delayMs: 0,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _sectionTitle('外观'),
-                      const ListTile(
-                        leading: Icon(Icons.brightness_6_outlined),
-                        title: Text('主题模式'),
-                        subtitle: Text('默认跟随系统'),
-                      ),
-                      const SizedBox(height: 8),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 4),
-                        child: SegmentedButton<ThemeMode>(
-                          segments: const [
-                            ButtonSegment(
-                                value: ThemeMode.system, label: Text('系统')),
-                            ButtonSegment(
-                                value: ThemeMode.light, label: Text('浅色')),
-                            ButtonSegment(
-                                value: ThemeMode.dark, label: Text('深色')),
-                          ],
-                          selected: {ref.watch(themeModeProvider)},
-                          onSelectionChanged: (selection) {
-                            ref
-                                .read(themeModeProvider.notifier)
-                                .set(selection.first);
-                          },
-                        ),
-                      ),
-                      const Divider(height: 32),
-                    ],
-                  ),
-                ),
-                // PID 系数段
-                _FadeInUp(
-                  delayMs: 50,
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _sectionTitle('PID 系数'),
-                        _numField('Kp', _kpCtrl),
-                        _numField('Ki', _kiCtrl),
-                        _numField('Kd', _kdCtrl),
-                        const Divider(height: 32),
-                        // 物理参数段
-                        _FadeInUp(
-                          delayMs: 100,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              _sectionTitle('物理参数'),
-                              _numField('T_ramp (s)', _tRampCtrl),
-                              _numField('轮径 (mm)', _wheelDiameterCtrl),
-                              _numField('轮距 (mm)', _wheelBaseCtrl),
-                              _numField('编码器槽数', _encoderSlotsCtrl,
-                                  integer: true),
-                              const SizedBox(height: 24),
-                              _AnimatedActionButton(
-                                label: '保存',
-                                icon: Icons.save_outlined,
-                                onPressed: _save,
-                                enabled: connected,
-                              ),
-                              if (!connected) ...[
-                                const SizedBox(height: 8),
-                                Text(
-                                  '请先连接设备',
-                                  style:
-                                      TextStyle(color: cs.onSurfaceVariant),
-                                ),
-                              ],
-                            ],
+                  child: Card(
+                    elevation: 0,
+                    color: cs.surfaceContainerLow,
+                    margin: const EdgeInsets.only(bottom: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius:
+                          BorderRadius.circular(AppTheme.radiusLg),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _sectionTitle('外观'),
+                          const ListTile(
+                            leading: Icon(Icons.brightness_6_outlined),
+                            title: Text('主题模式'),
+                            subtitle: Text('默认跟随系统'),
                           ),
-                        ),
-                      ],
+                          const SizedBox(height: 8),
+                          Padding(
+                            padding:
+                                const EdgeInsets.symmetric(horizontal: 4),
+                            child: SegmentedButton<ThemeMode>(
+                              segments: const [
+                                ButtonSegment(
+                                    value: ThemeMode.system,
+                                    label: Text('系统')),
+                                ButtonSegment(
+                                    value: ThemeMode.light,
+                                    label: Text('浅色')),
+                                ButtonSegment(
+                                    value: ThemeMode.dark,
+                                    label: Text('深色')),
+                              ],
+                              selected: {ref.watch(themeModeProvider)},
+                              onSelectionChanged: (selection) {
+                                ref
+                                    .read(themeModeProvider.notifier)
+                                    .set(selection.first);
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
-                const Divider(height: 32),
+                // PID + 物理参数表单
+                Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // PID 系数段
+                      _FadeInUp(
+                        delayMs: 50,
+                        child: Card(
+                          elevation: 0,
+                          color: cs.surfaceContainerLow,
+                          margin: const EdgeInsets.only(bottom: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius:
+                                BorderRadius.circular(AppTheme.radiusLg),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              crossAxisAlignment:
+                                  CrossAxisAlignment.start,
+                              children: [
+                                _sectionTitle('PID 系数'),
+                                _numField('Kp', _kpCtrl),
+                                _numField('Ki', _kiCtrl),
+                                _numField('Kd', _kdCtrl),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      // 物理参数段
+                      _FadeInUp(
+                        delayMs: 100,
+                        child: Card(
+                          elevation: 0,
+                          color: cs.surfaceContainerLow,
+                          margin: const EdgeInsets.only(bottom: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius:
+                                BorderRadius.circular(AppTheme.radiusLg),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              crossAxisAlignment:
+                                  CrossAxisAlignment.start,
+                              children: [
+                                _sectionTitle('物理参数'),
+                                _numField('T_ramp (s)', _tRampCtrl),
+                                _numField(
+                                    '轮径 (mm)', _wheelDiameterCtrl),
+                                _numField('轮距 (mm)', _wheelBaseCtrl),
+                                _numField('编码器槽数', _encoderSlotsCtrl,
+                                    integer: true),
+                                const SizedBox(height: 24),
+                                _AnimatedActionButton(
+                                  label: '保存',
+                                  icon: Icons.save_outlined,
+                                  onPressed: _save,
+                                  enabled: connected,
+                                ),
+                                if (!connected) ...[
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    '请先连接设备',
+                                    style: TextStyle(
+                                        color: cs.onSurfaceVariant),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
                 // WiFi 配置段
                 _FadeInUp(
                   delayMs: 150,
-                  child: Form(
-                    key: _wifiFormKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Text('WiFi 配置',
-                            style: Theme.of(context).textTheme.titleMedium),
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          controller: _ssidCtrl,
-                          decoration: const InputDecoration(labelText: 'SSID'),
-                          maxLength: 32,
-                          validator: (v) =>
-                              (v == null || v.trim().isEmpty) ? '不能为空' : null,
+                  child: Card(
+                    elevation: 0,
+                    color: cs.surfaceContainerLow,
+                    margin: const EdgeInsets.only(bottom: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius:
+                          BorderRadius.circular(AppTheme.radiusLg),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Form(
+                        key: _wifiFormKey,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _sectionTitle('WiFi 配置'),
+                            TextFormField(
+                              controller: _ssidCtrl,
+                              decoration:
+                                  const InputDecoration(labelText: 'SSID'),
+                              maxLength: 32,
+                              validator: (v) => (v == null ||
+                                      v.trim().isEmpty)
+                                  ? '不能为空'
+                                  : null,
+                            ),
+                            TextFormField(
+                              controller: _passwordCtrl,
+                              decoration: const InputDecoration(
+                                  labelText: '密码'),
+                              obscureText: true,
+                              maxLength: 64,
+                              validator: (v) => (v == null || v.isEmpty)
+                                  ? '不能为空'
+                                  : null,
+                            ),
+                            const SizedBox(height: 24),
+                            _AnimatedActionButton(
+                              label: '下发到设备',
+                              icon: Icons.wifi,
+                              onPressed: _sendWifi,
+                              enabled: connected,
+                            ),
+                            if (!connected) ...[
+                              const SizedBox(height: 8),
+                              Text(
+                                '请先连接设备',
+                                style: TextStyle(
+                                    color: cs.onSurfaceVariant),
+                              ),
+                            ],
+                          ],
                         ),
-                        TextFormField(
-                          controller: _passwordCtrl,
-                          decoration: const InputDecoration(labelText: '密码'),
-                          obscureText: true,
-                          maxLength: 64,
-                          validator: (v) =>
-                              (v == null || v.isEmpty) ? '不能为空' : null,
-                        ),
-                        const SizedBox(height: 24),
-                        _AnimatedActionButton(
-                          label: '下发到设备',
-                          icon: Icons.wifi,
-                          onPressed: _sendWifi,
-                          enabled: connected,
-                        ),
-                        if (!connected) ...[
-                          const SizedBox(height: 8),
-                          Text(
-                            '请先连接设备',
-                            style: TextStyle(color: cs.onSurfaceVariant),
-                          ),
-                        ],
-                      ],
+                      ),
                     ),
                   ),
                 ),

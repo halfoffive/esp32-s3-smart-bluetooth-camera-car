@@ -45,22 +45,32 @@ class TelemetryPanel extends ConsumerWidget {
   Widget _cell(BuildContext context, String label, String? value) {
     final cs = Theme.of(context).colorScheme;
     return Expanded(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            value ?? '——',
-            style: AppTheme.mono(size: 18, color: cs.onSurface),
+      child: Card(
+        elevation: 0,
+        color: cs.surfaceContainerLow,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                value ?? '——',
+                style: AppTheme.mono(size: 18, color: cs.onSurface),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: cs.onSurfaceVariant,
+                    ) ??
+                    TextStyle(fontSize: 10, color: cs.onSurfaceVariant),
+              ),
+            ],
           ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: cs.onSurfaceVariant,
-                ) ??
-                TextStyle(fontSize: 10, color: cs.onSurfaceVariant),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -73,25 +83,35 @@ class TelemetryPanel extends ConsumerWidget {
         ? '${(mv / 1000).toStringAsFixed(2)} V'
         : '——';
     return Expanded(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            text,
-            style: AppTheme.mono(
-              size: 16,
-              color: _batteryColor(context, mv),
-            ),
+      child: Card(
+        elevation: 0,
+        color: cs.surfaceContainerLow,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                text,
+                style: AppTheme.mono(
+                  size: 16,
+                  color: _batteryColor(context, mv),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '电池',
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: cs.onSurfaceVariant,
+                    ) ??
+                    TextStyle(fontSize: 10, color: cs.onSurfaceVariant),
+              ),
+            ],
           ),
-          const SizedBox(height: 4),
-          Text(
-            '电池',
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: cs.onSurfaceVariant,
-                ) ??
-                TextStyle(fontSize: 10, color: cs.onSurfaceVariant),
-          ),
-        ],
+        ),
       ),
     );
   }

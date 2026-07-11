@@ -55,6 +55,27 @@ flutter pub get
 
 `android/`、`linux/`、`windows/`、`macos/` 不在版本控制中，由 `flutter create .` 补齐，不会覆盖 `lib/` 与 `pubspec.yaml`。
 
+### 本地 Android 开发（首次拉取后）
+
+`app/android/` 不在版本控制中，本地开发需在仓库根目录执行一次 setup 脚本，自动生成并 patch `app/android/`：
+
+```bash
+# Linux / macOS / Git Bash
+bash scripts/setup-android.sh
+
+# Windows PowerShell
+.\scripts\setup-android.ps1
+```
+
+脚本会完成：`flutter create . --platforms android` → `flutter_rust_bridge_codegen integrate` → 恢复 `lib/main.dart` → 清理模板演示文件 → patch cargokit Gradle 9 兼容 → patch compileSdk 35 → 注入 `BLUETOOTH_SCAN` / `BLUETOOTH_CONNECT` / `ACCESS_FINE_LOCATION` 权限。之后即可：
+
+```bash
+cd app
+flutter pub get
+flutter_rust_bridge_codegen generate
+flutter run -d <android-device>
+```
+
 ### App 运行与构建
 
 ```bash
@@ -117,6 +138,8 @@ cargo doc --no-deps --open            # 本地浏览
 - 新增 `permission_handler` 依赖后，必须确保 `AndroidManifest.xml` 声明对应权限（`BLUETOOTH_SCAN`、`BLUETOOTH_CONNECT`、`ACCESS_FINE_LOCATION`）。由于 `app/android/` 不在版本控制中，CI 在 `flutter create .` 之后需 patch `app/android/app/src/main/AndroidManifest.xml` 注入权限声明；否则 Android 12+ 上请求权限会直接返回 denied，且 `flutter build apk` 不会自动补全这些运行时权限。
 - **导航流程**（自 2026-07 重构）：App 不再用底部 `NavigationBar` 多 tab，改为 `_AppRouter`（`main.dart`）按 `bleControllerProvider.select((s) => s.status)` 状态驱动路由：`status == connected` -> `ControlScreen`（横屏控制页），其余 -> `DeviceConnectionScreen`（设备连接页，应用入口）。设置与「断开连接」藏入 AppBar `PopupMenuButton`（`/settings` 命名路由 `pushNamed`）。`ControlScreen.initState` 用 `SystemChrome.setPreferredOrientations([landscapeLeft, landscapeRight])` 锁横屏，`dispose` 恢复 `DeviceOrientation.values`（设备连接/设置页允许竖屏）。`ControlPanel` 仅单摇杆 + 紧急停车，不再有体感/键盘模式切换（`ControlMode` 枚举已移除）。
 - `SystemChrome.setPreferredOrientations` 是全局副作用，离开横屏页**必须**在 `dispose` 恢复全方向，否则设备连接/设置页会被锁成横屏导致表单布局异常。
+- **Windows 蓝牙关闭时 `FlutterBluePlus.adapterState` 可能抛错**：Windows 上蓝牙未开启或飞行模式时，`adapterState` 流可能直接抛出异常而非仅返回 `BluetoothAdapterState.off`。`BleController` 构造时对该流注册 `onError`，将内部状态回退为 `BluetoothAdapterState.unknown` 并通过 `BleState.errorMessage` 中文提示用户；缺失 `onError` 会导致未处理异常进入 Zone 错误处理器，App 可能卡死或 UI 冻结。`DeviceConnectionScreen` 在 Windows 下提供「打开蓝牙设置」按钮，通过 `Process.run('cmd', ['/c', 'start', 'ms-settings:bluetooth'])` 深链打开系统蓝牙设置。
+- **Android 权限拒绝的启发式判断**：当 `Permission.bluetoothScan` 与 `Permission.location` 同时返回 `permanentlyDenied` 时，大概率是 `AndroidManifest.xml` 未声明对应权限，而非用户永久拒绝。`BlePermissions.isNotDeclaredInManifest()` 封装了该启发式；`BleController` 命中后提示「请运行 `scripts/setup-android.sh` / `scripts/setup-android.ps1`」。如需在 UI 层展示权限说明弹窗，应调用 `BlePermissions.showRationaleDialog(context)`，该辅助函数已提供但需业务侧主动接入。
 
 ## 已知限制
 
@@ -135,6 +158,7 @@ cargo doc --no-deps --open            # 本地浏览
 - `CMD_SET_WIFI=0x05` 载荷 = 长度前缀字符串对（变长）：
   `ssid_len(u8, 1) | ssid(ssid_len 字节) | pass_len(u8, 1) | pass(pass_len 字节)`，SSID ≤ 32 字节、密码 ≤ 64 字节；App→固件，复用控制 WRITE 特征 `...def2`；设备收到后写 NVS，当前固件不主动连 WiFi（预留扩展）。
 - BLE 权限请求：App 在扫描 / 连接前须通过 `permission_handler` 请求平台权限；Android 12+ 需 `BLUETOOTH_SCAN` / `BLUETOOTH_CONNECT`，Android 11 及以下额外补充 `ACCESS_FINE_LOCATION`；iOS / macOS 使用 `Permission.bluetooth`（依赖 `NSBluetoothAlwaysUsageDescription` 等 Info.plist 描述）；Linux / Windows 桌面端无需运行时权限。未授权或蓝牙关闭时，UI 通过 `BleState.errorMessage` / `MaterialBanner` 中文提示用户。
+- **主动权限请求时机**：`DeviceConnectionScreen` 在 `initState` 中通过 `WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted) BlePermissions.requestAll(); })` 在首帧渲染完成后主动请求权限，不阻塞 UI。被动等待用户点击扫描再请求会导致首次进入设备页时 banner 提示滞后。
 
 ## 用户强制风格
 

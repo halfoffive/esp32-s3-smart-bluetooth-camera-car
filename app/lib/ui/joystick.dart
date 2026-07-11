@@ -168,11 +168,26 @@ class _JoystickPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // ---- 底圆填充 ----
+    // ---- 底圆外阴影（增加深度） ----
+    canvas.drawShadow(
+      Path()..addOval(Rect.fromCircle(center: center, radius: baseRadius)),
+      Colors.black.withValues(alpha: 0.2),
+      2.0,
+      false,
+    );
+
+    // ---- 底圆填充（径向渐变，模拟凹陷） ----
     canvas.drawCircle(
       center,
       baseRadius,
-      Paint()..color = baseFill,
+      Paint()
+        ..shader = RadialGradient(
+          colors: [baseFill, baseFill.withValues(alpha: 0.7)],
+          center: Alignment.center,
+          radius: 1.0,
+        ).createShader(
+          Rect.fromCircle(center: center, radius: baseRadius),
+        ),
     );
 
     // ---- 底圆边（橙色细环，提示交互区）----

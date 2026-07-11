@@ -17,6 +17,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../ble/ble_controller.dart';
 import '../ble/ble_permissions.dart';
 import 'settings_route.dart';
+import 'theme.dart';
 
 /// 设备连接页（应用入口）：扫描、连接、断开 BLE 设备。
 ///
@@ -120,6 +121,7 @@ class _DeviceConnectionScreenState
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: Card(
+                        elevation: 2,
                         child: Padding(
                           padding: const EdgeInsets.all(16),
                           child: Row(
@@ -128,11 +130,24 @@ class _DeviceConnectionScreenState
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(
-                                      _displayName(connectedDevice) ?? '已连接设备',
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w600,
-                                      ),
+                                    Row(
+                                      children: [
+                                        Container(
+                                          width: 8,
+                                          height: 8,
+                                          decoration: const BoxDecoration(
+                                            color: HudStatus.active,
+                                            shape: BoxShape.circle,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          _displayName(connectedDevice) ?? '已连接设备',
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
@@ -162,11 +177,29 @@ class _DeviceConnectionScreenState
                 Expanded(
                   child: state.discoveredDevices.isEmpty
                       ? Center(
-                          child: Text(
-                            state.status == ConnectionStatus.scanning
-                                ? '正在搜索设备...'
-                                : '暂无设备，点击上方按钮扫描',
-                            style: TextStyle(color: cs.onSurfaceVariant),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.bluetooth_disabled,
+                                size: 48,
+                                color: cs.onSurfaceVariant,
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                state.status == ConnectionStatus.scanning
+                                    ? '正在搜索设备...'
+                                    : '暂无设备',
+                                style: Theme.of(context).textTheme.titleMedium,
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                state.status == ConnectionStatus.scanning
+                                    ? '请确保小车已上电并进入广播状态'
+                                    : '点击上方按钮开始扫描',
+                                style: TextStyle(color: cs.onSurfaceVariant),
+                              ),
+                            ],
                           ),
                         )
                       : ListView.builder(
@@ -179,16 +212,23 @@ class _DeviceConnectionScreenState
                                     state.status == ConnectionStatus.connected;
                             return _AnimatedListItem(
                               index: index,
-                              child: ListTile(
-                                title: Text(_displayName(device) ?? '未知设备'),
-                                subtitle: Text(device.device.remoteId.str),
-                                trailing: FilledButton.tonal(
-                                  onPressed: connectDisabled
-                                      ? null
-                                      : () => ref
-                                          .read(bleControllerProvider.notifier)
-                                          .connect(device),
-                                  child: const Text('连接'),
+                              child: Card(
+                                elevation: 1,
+                                margin: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 4,
+                                ),
+                                child: ListTile(
+                                  title: Text(_displayName(device) ?? '未知设备'),
+                                  subtitle: Text(device.device.remoteId.str),
+                                  trailing: FilledButton.tonal(
+                                    onPressed: connectDisabled
+                                        ? null
+                                        : () => ref
+                                            .read(bleControllerProvider.notifier)
+                                            .connect(device),
+                                    child: const Text('连接'),
+                                  ),
                                 ),
                               ),
                             );
@@ -359,13 +399,14 @@ class _RadarPulseState extends State<_RadarPulse>
             children: List.generate(3, (i) {
               final t = (_controller.value + i * 0.25) % 1.0;
               final size = 40.0 + t * 80.0;
+              final opacity = (1 - Curves.easeOutQuad.transform(t)) * 0.5;
               return Container(
                 width: size,
                 height: size,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: primary.withValues(alpha: (1 - t) * 0.5),
+                    color: primary.withValues(alpha: opacity),
                     width: 2,
                   ),
                 ),

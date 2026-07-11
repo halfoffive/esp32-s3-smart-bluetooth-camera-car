@@ -75,6 +75,27 @@ flutter_rust_bridge_codegen generate   # 生成 Rust ↔ Dart 绑定
 flutter pub get
 ```
 
+### 本地 Android 开发
+
+`app/android/` 不在版本控制中，首次拉取后需要在仓库根目录执行一次 setup 脚本，自动生成并 patch `app/android/`：
+
+```bash
+# Linux / macOS / Git Bash
+bash scripts/setup-android.sh
+
+# Windows PowerShell
+.\scripts\setup-android.ps1
+```
+
+脚本会完成 `flutter create . --platforms android`、`flutter_rust_bridge_codegen integrate`、恢复 `lib/main.dart`、清理模板演示文件、patch cargokit Gradle 9 兼容、提升 compileSdk 到 35，并向 `AndroidManifest.xml` 注入 `BLUETOOTH_SCAN` / `BLUETOOTH_CONNECT` / `ACCESS_FINE_LOCATION` 权限。之后即可：
+
+```bash
+cd app
+flutter pub get
+flutter_rust_bridge_codegen generate
+flutter run -d <android-device>
+```
+
 ### 运行
 ```bash
 flutter run -d <device-id>
@@ -88,6 +109,8 @@ flutter run -d <device-id>
   ```
   否则启动时会因找不到 Rust 动态库而进入错误回退页。
 - BLE 包已迁移到 `flutter_blue_plus`，原生支持 Android / iOS / Linux / macOS，Windows 通过 federated 插件 `flutter_blue_plus_winrt` 支持。编译 Rust 动态库后即可在桌面端扫描/连接/控制。
+
+**Windows 蓝牙**：Windows 上蓝牙未开启或处于飞行模式时，设备连接页顶部会显示 `MaterialBanner` 提示。点击「打开蓝牙设置」会通过 `ms-settings:bluetooth` 深链打开系统蓝牙设置；若深链失败则提示手动开启。Android 上按钮为「开启蓝牙」（调用 `FlutterBluePlus.turnOn()`），iOS / macOS / Linux 仅文字提示。
 
 ### 构建
 ```bash
