@@ -78,14 +78,12 @@
 
 - [x] Task 8: 修复 `build-hap` job 因 flutter_flutter SDK fork `version` 为 `0.0.0-unknown` 导致 `flutter create --platforms=ohos` 失败 ✅
   - 文件：`.github/workflows/app.yml` 的 `build-hap` job
-  - 根因：gitcode fork 默认分支 `br_3.27.4-ohos-1.0.4` 的 `version` 文件写死为 `0.0.0-unknown`；`flutter create` 内部会跑 `flutter pub get`，项目 `pubspec.yaml` 要求 `flutter: '>=3.27.0'`，`flutter_test` 约束要求 `>=3.18.0-18.0.pre.54`，因此 `0.0.0-unknown` 不满足约束，版本解析失败。
+  - 根因（深入）：上一轮"先写 version 文件"无效——`flutter --version` 的 bootstrap 会用 `git describe --tags`（`--depth 1` 克隆无 tag）回退常量 `0.0.0-unknown`，并把 `0.0.0-unknown` **写回** version 文件（覆盖此前写入）+ **新建** `bin/cache/flutter.version.json`，sed 也因 cache 当时不存在而未执行
   - 改动：
-    - Clone 步骤后新增 `Fix Flutter SDK version for fork` 步骤，写入真实版本号（如 `3.27.4`）到 `$HOME/flutter_ohos/version`
-    - 同步修正 `bin/cache/flutter.version.json` 中的 `0.0.0-unknown` 占位（若存在）
-    - 在 `flutter create --platforms=ohos` 前下载并配置 OpenHarmony SDK，确保 `HOS_SDK_HOME` / `OHOS_SDK_HOME` / `PATH` 已设置；`flutter create` 可能需要 SDK 定位
-    - 将 OpenHarmony SDK 下载步骤从第 9 步提前到 `flutter create` 之前（Bootstrap ohos platform 之前）
-    - 调优 artifact 上传路径，优先 `app/build/ohos/**/*.hap` / `app/ohos/entry/build/default/outputs/default/*.hap` 等常见 hvigor 产物路径
-  - 验证：push 触发 CI，`build-hap` job 的 `Bootstrap ohos platform` 步骤通过；`Build HarmonyOS HAP` 步骤至少能继续向下执行；最终若成功则上传 `app-hap` artifact
+    - `Fix Flutter SDK version for fork` 步骤改为**先 `flutter --version` 触发 bootstrap 创建 cache，再 patch `bin/cache/flutter.version.json` 与 `version` 文件**（patch 后后续命令因缓存存在且 `!fetchTags` 直接读缓存，不再覆盖）
+    - `Download OpenHarmony SDK` 改为多 URL fallback（优先 `https://repo.huaweicloud.com/openharmony/os/4.0-Release/ohos-sdk-linux.tar.gz`），同时设置 `HOS_SDK_HOME` / `OHOS_SDK_HOME` / `DEVECO_SDK_HOME` 三个环境变量（fork 的 `validApi10/11SdkDirectory` 硬性校验）
+    - `find` 打印解压后目录结构供日志排查
+  - 验证：子代理本地复现确认版本补丁顺序修复后 `flutter pub get` 输出 `Got dependencies.`（版本约束通过）；CI workflow_dispatch 实跑由用户决策跳过（信任本地复现）
   - 依赖：无（仅修改 CI 步骤顺序与版本补丁）
 
 ## Task Dependencies
