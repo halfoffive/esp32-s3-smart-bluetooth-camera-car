@@ -190,7 +190,12 @@ jobs:
       #      桌面平台沿用下方手动 cargo build + copy 步骤，不在此处接入。
       - name: Integrate flutter_rust_bridge (Android)
         if: matrix.flutter_target == 'apk'
-        run: cd app && flutter_rust_bridge_codegen integrate
+        run: |
+          cd app && flutter_rust_bridge_codegen integrate
+          # integrate 以模板覆盖方式注入 rust_builder/ 构建系统，同时会生成模板演示文件
+          # rust/src/api/simple.rs 与 lib/src/rust/api/simple.dart。simple.rs 未在 api/mod.rs
+          # 中声明为子模块故不会被编译，但残留的 simple.dart 可能干扰 generate 阶段，须清理。
+          rm -f rust/src/api/simple.rs lib/src/rust/api/simple.dart
 
       # 9. patch Android compileSdk 至 35（仅 Android 构建需要）：flutter_blue_plus 依赖 AndroidX 1.7.x
       #      要求 compileSdk ≥ 34；android/ 由 flutter create 生成、不在版本控制中，须在 CI 内 patch

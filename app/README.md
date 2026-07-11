@@ -34,7 +34,7 @@ flutter pub get
 
 ## flutter_rust_bridge 代码生成
 
-Rust 侧接口写在 `rust/src/api.rs` 下，Dart 侧胶水代码由 codegen 生成。修改 Rust 接口后执行：
+Rust 侧接口写在 `rust/src/api/mod.rs` 下，Dart 侧胶水代码由 codegen 生成。修改 Rust 接口后执行：
 
 ```bash
 flutter_rust_bridge_codegen generate
@@ -86,7 +86,7 @@ app/
 ├── rust/                      # Rust 子 crate（flutter_rust_bridge）
 │   ├── src/
 │   │   ├── lib.rs             # crate 入口
-│   │   ├── api.rs             # flutter_rust_bridge 暴露的 API 表面
+│   │   ├── api/mod.rs         # flutter_rust_bridge 暴露的 API 表面
 │   │   ├── ble.rs             # 帧解析（同步头 / 长度 / CRC8 校验）
 │   │   ├── image.rs           # assemble_chunk(state, packet) -> Option<Frame> 分片重组
 │   │   ├── control.rs         # encode_command(dir, turn, speed) -> Vec<u8> 控制指令编码
