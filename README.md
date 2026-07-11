@@ -87,7 +87,7 @@ flutter run -d <device-id>
   cargo build --release
   ```
   否则启动时会因找不到 Rust 动态库而进入错误回退页。
-- `flutter_reactive_ble` 不支持 Windows / Linux / macOS 桌面端，桌面端可以显示 UI，但「扫描设备」会报 `UnimplementedError: initialize() has not been implemented`。BLE 功能仅在 Android / iOS 上可用。
+- BLE 包已迁移到 `flutter_blue_plus`，原生支持 Android / iOS / Linux / macOS，Windows 通过 federated 插件 `flutter_blue_plus_winrt` 支持。编译 Rust 动态库后即可在桌面端扫描/连接/控制。
 
 ### 构建
 ```bash

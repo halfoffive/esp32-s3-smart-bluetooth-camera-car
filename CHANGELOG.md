@@ -7,6 +7,9 @@
 
 ## [Unreleased]
 
+### Changed
+- feat(app): BLE 包从 `flutter_reactive_ble` 迁移到 `flutter_blue_plus` —— 重写 `app/lib/ble/ble_controller.dart` 使用 `FlutterBluePlus.startScan` / `BluetoothDevice.connect` / `discoverServices` / `setNotifyValue` / `characteristic.write`，保留 5 状态 `ConnectionStatus` 机、3 次指数退避重连、MTU=512（Android 显式请求，桌面自动协商）；`app/lib/ui/devices_screen.dart` 改用 `ScanResult` / `BluetoothDevice` 类型；`app/pubspec.yaml` 替换依赖；`.github/workflows/app.yml` 更新 compileSdk patch 注释。Rust 协议层、frb 绑定、GATT UUID 与帧格式均不变。
+
 ### Fixed
 - fix(app): 修复 App 启动空白页 —— `main.dart` 现在显式调用 `await RustLib.init()`（flutter_rust_bridge v2 要求），并在初始化失败时显示回退界面；同时用 try/catch 保护 `themeModeProvider.load()`，避免 `SharedPreferences` 等插件初始化异常阻止 `runApp` 导致空白屏。另设置 `ErrorWidget.builder`，将未捕获的 widget 构建异常渲染为 Material 错误页，而非 release 模式空白 / debug 模式红屏。
 

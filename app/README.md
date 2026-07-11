@@ -12,7 +12,7 @@ BLE 二进制协议、GATT UUID、帧格式详见仓库根目录 [README](../REA
 - Flutter（latest stable）+ Dart
 - Rust（stable）+ [flutter_rust_bridge](https://github.com/fzyzcjy/flutter_rust_bridge) v2.x（latest）
 - 状态管理：Riverpod；模型：Freezed
-- BLE：flutter_reactive_ble；传感器：sensors_plus
+- BLE：flutter_blue_plus；传感器：sensors_plus
 
 ## 目标平台
 
