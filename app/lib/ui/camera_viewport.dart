@@ -31,10 +31,9 @@ class CameraViewport extends ConsumerWidget {
         children: [
           // ---- 视频层 ----
           frameAsync.when(
-            data: (bytes) => Image.memory(
-              bytes,
-              fit: BoxFit.cover,
-              gaplessPlayback: true,
+            data: (bytes) => _AnimatedFrame(
+              key: const ValueKey('frame'),
+              bytes: bytes,
             ),
             loading: () => const _Placeholder(text: '等待画面...'),
             error: (e, _) => _Placeholder(text: '画面错误: $e'),
@@ -63,6 +62,85 @@ class CameraViewport extends ConsumerWidget {
           Positioned.fill(child: _HudOverlay(frameAsync: frameAsync)),
         ],
       ),
+    );
+  }
+}
+
+/// 画面首次出现时的缩放+淡入动画容器。
+///
+/// 通过 [ValueKey] 保持稳定，父级每帧刷新时不会重建，
+/// 只在 initState 时播放一次进入动画。
+class _AnimatedFrame extends StatefulWidget {
+  const _AnimatedFrame({super.key, required this.bytes});
+
+  final Uint8List bytes;
+
+  @override
+  State<_AnimatedFrame> createState() => _AnimatedFrameState();
+}
+
+class _AnimatedFrameState extends State<_AnimatedFrame> {
+  bool _visible = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // 首帧渲染完成后开始动画，避免初始状态即为目标状态
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() => _visible = true);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedScale(
+      scale: _visible ? 1.0 : 0.95,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOut,
+      child: AnimatedOpacity(
+        opacity: _visible ? 1.0 : 0.0,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+        child: Image.memory(
+          widget.bytes,
+          fit: BoxFit.cover,
+          gaplessPlayback: true,
+        ),
+      ),
+    );
+  }
+}
+
+/// 延迟淡入动画：用于 HUD 元素依次出现。
+class _FadeInDelayed extends StatefulWidget {
+  const _FadeInDelayed({super.key, required this.child, required this.delayMs});
+
+  final Widget child;
+  final int delayMs;
+
+  @override
+  State<_FadeInDelayed> createState() => _FadeInDelayedState();
+}
+
+class _FadeInDelayedState extends State<_FadeInDelayed> {
+  bool _visible = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // 按指定延迟触发淡入，形成错落出现效果
+    Future.delayed(Duration(milliseconds: widget.delayMs), () {
+      if (mounted) setState(() => _visible = true);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedOpacity(
+      opacity: _visible ? 1.0 : 0.0,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOut,
+      child: widget.child,
     );
   }
 }
@@ -131,56 +209,71 @@ class _HudOverlayState extends ConsumerState<_HudOverlay> {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          // 四角 bracket 装饰
-          ..._cornerBrackets(),
+          // 四角 bracket 装饰（整体淡入）
+          _FadeInDelayed(
+            delayMs: 0,
+            child: Stack(
+              fit: StackFit.expand,
+              children: _cornerBrackets(),
+            ),
+          ),
 
           // 左上：连接状态
-          Positioned(
-            top: 10,
-            left: 12,
-            child: _HudChip(
-              icon: _statusIcon(bleState.status),
-              color: _statusColor(bleState.status),
-              text: _statusText(bleState.status),
+          _FadeInDelayed(
+            delayMs: 80,
+            child: Positioned(
+              top: 10,
+              left: 12,
+              child: _HudChip(
+                icon: _statusIcon(bleState.status),
+                color: _statusColor(bleState.status),
+                text: _statusText(bleState.status),
+              ),
             ),
           ),
 
           // 右上：FPS
-          Positioned(
-            top: 10,
-            right: 12,
-            child: _HudChip(
-              text: '${_frameTimes.length} FPS',
-              color: HudStatus.active,
+          _FadeInDelayed(
+            delayMs: 160,
+            child: Positioned(
+              top: 10,
+              right: 12,
+              child: _HudChip(
+                text: '${_frameTimes.length} FPS',
+                color: HudStatus.active,
+              ),
             ),
           ),
 
           // 底部居中：速度
-          Positioned(
-            bottom: 12,
-            left: 0,
-            right: 0,
-            child: Center(
-              child: RichText(
-                textAlign: TextAlign.center,
-                text: TextSpan(
-                  children: [
-                    TextSpan(
-                      text: speedCmS == null ? '——' : speedCmS.toStringAsFixed(1),
-                      style: AppTheme.mono(
-                        size: 34,
-                        weight: FontWeight.w700,
-                        color: Theme.of(context).colorScheme.primary,
+          _FadeInDelayed(
+            delayMs: 240,
+            child: Positioned(
+              bottom: 12,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: RichText(
+                  textAlign: TextAlign.center,
+                  text: TextSpan(
+                    children: [
+                      TextSpan(
+                        text: speedCmS == null ? '——' : speedCmS.toStringAsFixed(1),
+                        style: AppTheme.mono(
+                          size: 34,
+                          weight: FontWeight.w700,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
                       ),
-                    ),
-                    TextSpan(
-                      text: ' cm/s',
-                      style: AppTheme.mono(
-                        size: 12,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      TextSpan(
+                        text: ' cm/s',
+                        style: AppTheme.mono(
+                          size: 12,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
