@@ -356,29 +356,48 @@ jobs:
           echo "Patched flutter version to $FLUTTER_VERSION"
 
       # 5. 下载 OpenHarmony SDK（公开下载地址：huaweicloud openharmony 镜像）
-      #    fork 的 `flutter create --platforms=ohos` 会硬性校验 SDK 结构
-      #    （validApi10/11SdkDirectory），无 SDK 或空目录会 throwToolExit。
-      #    提前到 flutter create 前；失败由 continue-on-error 兜底。
+      #    fork 的 OhosSdk 校验逻辑（ohos_sdk.dart）：
+      #    1. initSdkVersionMap 扫描 OHOS_SDK_HOME 下纯数字命名的子目录
+      #    2. _getHdcPath 在 <sdkPath>/<数字>/toolchains/hdc 查找 hdc 可执行文件
+      #    3. 必须先解压外层 .tar.gz，再解压内层 linux/*.zip，最后重组为数字目录结构
       - name: Download OpenHarmony SDK
         run: |
           mkdir -p "$HOME/ohos-sdk"
-          # 尝试 OpenHarmony SDK 官方公开镜像（华为云）；URL 失败则继续，由后续步骤报错
+          # 尝试 OpenHarmony SDK 官方公开镜像（华为云）
           for SDK_URL in \
             "https://repo.huaweicloud.com/openharmony/os/5.0.0-Release/ohos-sdk-windows_linux-public.tar.gz" \
             "https://repo.huaweicloud.com/openharmony/os/4.0-Release/ohos-sdk-windows_linux-public.tar.gz"; do
             echo "Trying: $SDK_URL"
             if curl -fSL -o /tmp/ohos-sdk.tar.gz "$SDK_URL" 2>&1; then
               echo "Downloaded from: $SDK_URL"
+              # 5.0.0-Release = API 12, 4.0-Release = API 10
+              case "$SDK_URL" in
+                *5.0.0-Release*) API_VERSION=12 ;;
+                *4.0-Release*)   API_VERSION=10 ;;
+                *)               API_VERSION=12 ;;
+              esac
               break
             fi
           done
           if [ -f /tmp/ohos-sdk.tar.gz ]; then
-            tar -xzf /tmp/ohos-sdk.tar.gz -C "$HOME/ohos-sdk" 2>&1 || true
-            # SDK 解压后结构因版本而异，把根目录与可能的 openharmony 子目录都暴露给校验
+            # 1) 解压外层 .tar.gz → ohos-sdk/{linux,windows}/*.zip
+            mkdir -p /tmp/ohos-sdk-extract
+            tar -xzf /tmp/ohos-sdk.tar.gz -C /tmp/ohos-sdk-extract
+            # 2) 解压内层 linux/*.zip → {ets,js,native,previewer,toolchains}/
+            if [ -d /tmp/ohos-sdk-extract/ohos-sdk/linux ]; then
+              cd /tmp/ohos-sdk-extract/ohos-sdk/linux
+              for f in *.zip; do unzip -o "$f" >/dev/null 2>&1; done
+              # 3) 重组为 OHOS_SDK_HOME/<API_VERSION>/toolchains/hdc 结构
+              mkdir -p "$HOME/ohos-sdk/$API_VERSION"
+              cp -r /tmp/ohos-sdk-extract/ohos-sdk/linux/* "$HOME/ohos-sdk/$API_VERSION/"
+              echo "SDK structure:"
+              find "$HOME/ohos-sdk" -name hdc -type f 2>/dev/null
+            fi
+            # OhosSdk 优先检查 OHOS_HOME，其次 OHOS_SDK_HOME
+            echo "OHOS_HOME=$HOME/ohos-sdk" >> "$GITHUB_ENV"
             echo "OHOS_SDK_HOME=$HOME/ohos-sdk" >> "$GITHUB_ENV"
             echo "HOS_SDK_HOME=$HOME/ohos-sdk" >> "$GITHUB_ENV"
             echo "DEVECO_SDK_HOME=$HOME/ohos-sdk" >> "$GITHUB_ENV"
-            find "$HOME/ohos-sdk" -maxdepth 3 -type d 2>/dev/null | head -20
           else
             echo "WARNING: OpenHarmony SDK 下载失败，后续 flutter create 可能报 No Hmos SDK found"
           fi
