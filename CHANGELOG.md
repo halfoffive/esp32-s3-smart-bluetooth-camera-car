@@ -8,6 +8,9 @@
 ## [Unreleased]
 
 ### Fixed
+- fix(ci/app): 修复 Android APK 启动即报 `Failed to load dynamic library "librust_lib.so": dlopen failed: library "librust_lib.so" not found` —— `app.yml` 的 `build-matrix` job 在 `flutter create .`（重新生成 `android/` 目录）之后缺少 `flutter_rust_bridge_codegen integrate` 步骤，导致 Android Gradle 未注入 CMake + NDK Rust 编译配置，`flutter build apk` 不编译 `rust/` crate，APK 不含 `librust_lib.so`。新增「Integrate flutter_rust_bridge (Android)」步骤（`if: matrix.flutter_target == 'apk'`），在 `flutter create .` 之后、compileSdk patch 之前执行，使 Gradle 通过 `externalNativeBuild` 自动编译 Rust crate 并打包 `lib/<abi>/librust_lib.so` 进 APK。桌面平台沿用既有手动 `cargo build` + copy 步骤，不受影响。
+
+### Fixed
 - fix(ci/app): 修复 Windows runner 上 `Install cargo-binstall` 步骤失败 —— `cargo-bins/cargo-binstall@v1.9.0`（以及 `@main`）的 PowerShell 自安装脚本在 `windows-latest` 上跑 `iwr` 抛 `Object reference not set to an instance of an object`；改用广泛适配三平台的 `taiki-e/install-action@v2.9.4` + `with.tool: cargo-binstall` 装 binstall 本体，两个 job（`cargo-doc` / `build-matrix`）统一。
 
 ### Fixed
