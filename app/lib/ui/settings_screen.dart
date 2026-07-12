@@ -204,7 +204,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     children: [
                       // PID 系数段
                       _FadeInUp(
-                        delayMs: 50,
+                        delayMs: 80,
                         child: Card(
                           elevation: 0,
                           color: cs.surfaceContainerLow,
@@ -230,7 +230,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       ),
                       // 物理参数段
                       _FadeInUp(
-                        delayMs: 100,
+                        delayMs: 140,
                         child: Card(
                           elevation: 0,
                           color: cs.surfaceContainerLow,
@@ -277,7 +277,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
                 // WiFi 配置段
                 _FadeInUp(
-                  delayMs: 150,
+                  delayMs: 200,
                   child: Card(
                     elevation: 0,
                     color: cs.surfaceContainerLow,
@@ -402,12 +402,12 @@ class _FadeInUpState extends State<_FadeInUp>
   void initState() {
     super.initState();
     _controller = AnimationController(
-      duration: const Duration(milliseconds: 350),
+      duration: AppAnim.durations.pageTransition,
       vsync: this,
     );
     _animation = CurvedAnimation(
       parent: _controller,
-      curve: Curves.easeOutCubic,
+      curve: AppAnim.curves.emphasized,
     );
     Future.delayed(Duration(milliseconds: widget.delayMs), () {
       if (mounted) _controller.forward();
@@ -426,7 +426,7 @@ class _FadeInUpState extends State<_FadeInUp>
       opacity: _animation,
       child: SlideTransition(
         position: Tween<Offset>(
-          begin: const Offset(0, 12),
+          begin: const Offset(0, 0.12),
           end: Offset.zero,
         ).animate(_animation),
         child: widget.child,
