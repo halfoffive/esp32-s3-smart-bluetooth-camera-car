@@ -11,19 +11,21 @@ import 'package:flutter/material.dart';
 class AppTheme {
   AppTheme._();
 
-  /// 浅色主题：纯 Material 3 默认配色。
+  /// 浅色主题：纯 Material 3 默认配色，全局字体 Roboto。
   static ThemeData light() {
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.light,
+      fontFamily: 'Roboto',
     );
   }
 
-  /// 深色主题：纯 Material 3 默认配色。
+  /// 深色主题：纯 Material 3 默认配色，全局字体 Roboto。
   static ThemeData dark() {
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
+      fontFamily: 'Roboto',
     );
   }
 
