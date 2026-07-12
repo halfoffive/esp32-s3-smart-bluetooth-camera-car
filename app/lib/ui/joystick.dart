@@ -7,6 +7,7 @@
 //   - 释放自动回中并回调 (0, 0)
 
 import 'package:flutter/material.dart';
+import 'theme.dart';
 
 /// 虚拟摇杆。
 ///
@@ -23,7 +24,7 @@ class Joystick extends StatefulWidget {
 }
 
 class _JoystickState extends State<Joystick>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   /// 拇指圆相对中心的偏移（屏幕坐标，y 向下为正）
   Offset _thumbOffset = Offset.zero;
 
@@ -36,18 +37,58 @@ class _JoystickState extends State<Joystick>
   /// 按压动画控制器：0.0 -> 1.0 表示从静止到按下
   late AnimationController _pressController;
 
+  /// 按压曲线包装（easeOutBack 弹性反馈）。
+  /// _JoystickPainter 直接读取 value，不感知 curve。
+  late Animation<double> _pressAnim;
+
+  /// 释放归位动画控制器：220ms emphasized。
+  late AnimationController _releaseController;
+
+  /// 释放归位 tween（每次释放起点不同，在 _release() 中重新赋值）。
+  late Animation<Offset> _releaseAnim;
+
+  /// 释放动画起点缓存：_release() 时记录当前 _thumbOffset 作为 tween begin。
+  Offset _releaseFrom = Offset.zero;
+
   @override
   void initState() {
     super.initState();
     _pressController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 100),
+      duration: AppAnim.durations.short,
     );
+    _pressAnim = CurvedAnimation(
+      parent: _pressController,
+      curve: AppAnim.curves.spring,
+    );
+    _releaseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 220),
+    );
+    _releaseAnim = Tween<Offset>(
+      begin: Offset.zero,
+      end: Offset.zero,
+    ).animate(
+      CurvedAnimation(
+        parent: _releaseController,
+        curve: AppAnim.curves.emphasized,
+      ),
+    );
+    // 永久 listener：通过 CurvedAnimation 转发挂在 _releaseController 上，
+    // _release() 中重赋值 _releaseAnim 后，listener 仍会触发并读取最新 value。
+    _releaseAnim.addListener(() {
+      if (mounted) {
+        setState(() {
+          _thumbOffset = _releaseAnim.value;
+        });
+      }
+    });
   }
 
   @override
   void dispose() {
     _pressController.dispose();
+    _releaseController.dispose();
     super.dispose();
   }
 
@@ -72,7 +113,7 @@ class _JoystickState extends State<Joystick>
           onPanUpdate: (d) => _update(d.localPosition, center),
           onPanEnd: (_) => _release(),
           child: AnimatedBuilder(
-            animation: _pressController,
+            animation: _pressAnim,
             builder: (context, child) {
               return CustomPaint(
                 size: size,
@@ -82,7 +123,7 @@ class _JoystickState extends State<Joystick>
                   baseRadius: baseRadius,
                   thumbRadius: thumbRadius,
                   active: _active,
-                  pressProgress: _pressController.value,
+                  pressProgress: _pressAnim.value,
                   baseFill: cs.surfaceContainerHigh,
                   baseStroke: cs.primary,
                   crossColor: cs.onSurfaceVariant,
@@ -101,6 +142,10 @@ class _JoystickState extends State<Joystick>
 
   /// 根据指针位置更新拇指偏移并回调归一化值。
   void _update(Offset local, Offset center) {
+    // 若归位动画正在运行，立即打断
+    if (_releaseController.isAnimating) {
+      _releaseController.stop();
+    }
     if (!_active) {
       _pressController.forward();
       _active = true;
@@ -125,8 +170,20 @@ class _JoystickState extends State<Joystick>
   void _release() {
     _pressController.reverse();
     _active = false;
-    setState(() => _thumbOffset = Offset.zero);
+    // 立即下发 stop 指令，不阻塞
     widget.onChanged(0, 0);
+    // 启动归位动画：从当前 _thumbOffset tween 到 Offset.zero
+    _releaseFrom = _thumbOffset;
+    _releaseAnim = Tween<Offset>(
+      begin: _releaseFrom,
+      end: Offset.zero,
+    ).animate(
+      CurvedAnimation(
+        parent: _releaseController,
+        curve: AppAnim.curves.emphasized,
+      ),
+    );
+    _releaseController.forward(from: 0.0);
   }
 }
 
