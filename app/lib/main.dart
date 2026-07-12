@@ -101,7 +101,7 @@ class _SplashScreen extends StatefulWidget {
 
   const _SplashScreen({
     required this.onComplete,
-    this.duration = const Duration(milliseconds: 1200),
+    this.duration = const Duration(milliseconds: 900),
   });
 
   @override
@@ -109,10 +109,17 @@ class _SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<_SplashScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late final AnimationController _controller;
   late final Animation<double> _scale;
   late final Animation<double> _fade;
+
+  // 退出动画：进入完成后播放 280ms 淡出+轻微上移+放大，再回调 onComplete。
+  late final AnimationController _exitController;
+  late final Animation<double> _exitFade;
+  late final Animation<double> _exitScale;
+  late final Animation<Offset> _exitSlide;
+  bool _exitStarted = false;
 
   @override
   void initState() {
@@ -123,16 +130,48 @@ class _SplashScreenState extends State<_SplashScreen>
     );
 
     _scale = Tween<double>(begin: 0.8, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOutBack),
+      CurvedAnimation(parent: _controller, curve: AppAnim.curves.spring),
     );
     _fade = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
         parent: _controller,
-        curve: const Interval(0.3, 1.0, curve: Curves.easeOut),
+        curve: Interval(0.3, 1.0, curve: AppAnim.curves.decel),
+      ),
+    );
+
+    _exitController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 280),
+    );
+    _exitFade = Tween<double>(begin: 1.0, end: 0.0).animate(
+      CurvedAnimation(
+        parent: _exitController,
+        curve: AppAnim.curves.emphasized,
+      ),
+    );
+    _exitScale = Tween<double>(begin: 1.0, end: 1.04).animate(
+      CurvedAnimation(
+        parent: _exitController,
+        curve: AppAnim.curves.emphasized,
+      ),
+    );
+    _exitSlide = Tween<Offset>(
+      begin: Offset.zero,
+      end: const Offset(0, -0.02),
+    ).animate(
+      CurvedAnimation(
+        parent: _exitController,
+        curve: AppAnim.curves.emphasized,
       ),
     );
 
     _controller.addStatusListener((status) {
+      if (status == AnimationStatus.completed && !_exitStarted) {
+        _exitStarted = true;
+        _exitController.forward();
+      }
+    });
+    _exitController.addStatusListener((status) {
       if (status == AnimationStatus.completed) {
         widget.onComplete();
       }
@@ -142,6 +181,7 @@ class _SplashScreenState extends State<_SplashScreen>
 
   @override
   void dispose() {
+    _exitController.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -151,36 +191,45 @@ class _SplashScreenState extends State<_SplashScreen>
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
 
-    return Scaffold(
-      body: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ScaleTransition(
-              scale: _scale,
-              child: Icon(
-                Icons.bluetooth_searching,
-                size: 80,
-                color: colorScheme.primary,
+    return FadeTransition(
+      opacity: _exitFade,
+      child: ScaleTransition(
+        scale: _exitScale,
+        child: SlideTransition(
+          position: _exitSlide,
+          child: Scaffold(
+            body: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ScaleTransition(
+                    scale: _scale,
+                    child: Icon(
+                      Icons.bluetooth_searching,
+                      size: 80,
+                      color: colorScheme.primary,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  FadeTransition(
+                    opacity: _fade,
+                    child: Text(
+                      '智能小车遥控',
+                      style: textTheme.headlineSmall,
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+                  FadeTransition(
+                    opacity: _fade,
+                    child: const SizedBox(
+                      width: 160,
+                      child: LinearProgressIndicator(),
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 24),
-            FadeTransition(
-              opacity: _fade,
-              child: Text(
-                '智能小车遥控',
-                style: textTheme.headlineSmall,
-              ),
-            ),
-            const SizedBox(height: 32),
-            FadeTransition(
-              opacity: _fade,
-              child: const SizedBox(
-                width: 160,
-                child: LinearProgressIndicator(),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -233,13 +282,13 @@ class _AppRouterState extends ConsumerState<_AppRouter> {
         : const DeviceConnectionScreen(key: ValueKey('device'));
 
     return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 300),
-      switchInCurve: Curves.easeInOutCubic,
-      switchOutCurve: Curves.easeInOutCubic,
+      duration: AppAnim.durations.pageTransition,
+      switchInCurve: AppAnim.curves.standard,
+      switchOutCurve: AppAnim.curves.standard,
       transitionBuilder: (child, animation) {
         final isControl = child.key == const ValueKey('control');
         final incoming = Tween<Offset>(
-          begin: isControl ? const Offset(1.0, 0.0) : const Offset(-1.0, 0.0),
+          begin: isControl ? const Offset(0.18, 0.0) : const Offset(-0.18, 0.0),
           end: Offset.zero,
         ).animate(animation);
         return SlideTransition(
