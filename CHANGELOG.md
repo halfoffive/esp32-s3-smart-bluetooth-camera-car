@@ -16,6 +16,15 @@
 ### Changed
 - perf(ui): 设备页、控制页、设置页视觉打磨 —— 设备列表项与空状态使用 `Card` + `HudStatus.active` 状态点；摇杆底圆增加 `RadialGradient` 渐变与 `drawShadow` 阴影；遥测单元格改用 `surfaceContainerLow` 卡片；设置页四段表单分别包裹 `surfaceContainerLow` 圆角卡片。
 - chore(app): `AppTheme` 新增共享 M3 圆角常量 `radiusSm` / `radiusMd` / `radiusLg` / `radiusXl`，供卡片 / 弹层 / 段位复用。
+- 新增 `AppAnim` 动画 token 类（`app/lib/ui/theme.dart`），集中暴露 `durations`（short 180ms / medium 300ms / long 460ms / pageTransition 360ms / touch 140ms）与 `curves`（emphasized / standard / decel / spring / springReverse / accel），所有 UI 动画引用 token 而非硬编码。
+- 摇杆释放归位改为 220ms `easeOutCubic` 动画（不再瞬间归零）；按下/释放反馈改为 180ms `easeOutBack` 弹性曲线。
+- 启动页进入动画缩短到 900ms，新增 280ms 退出动画（fade + scale 1.0→1.04 + 上移 16px），退出完成后才回调 `onComplete`，避免硬切。
+- `_AppRouter` 转场横滑距离从 100% 屏宽减至 18%，时长改为 360ms `easeInOutCubicEmphasized`，避免「扫场」感。
+- 设置页路由区分 push/pop 曲线：push 用 `easeOutCubic`（减速进入），pop 用 `easeInCubic`（加速离开），时长 360ms。
+- 设备页列表项位移从 5% 屏高放大至 18%，`index ≥ 5` 后停止 stagger 延迟；已连接卡片新增 scale 0.96→1.0 + `easeOutBack` 弹性入场。
+- 扫描按钮按下反馈改为 140ms `easeOutBack` 弹性曲线。
+- HUD 元素淡入新增 5% 屏高上移位移，delay 序列改为前快后慢（0/100/180/240ms）。
+- 设置页表单段位移从 12px 放大至 12% 子高度（修正原 `Offset(0, 12)` 在 SlideTransition 中按比例解释过冲的笔误），delay 序列改为 0/80/140/200ms。
 
 ### Added
 - feat(app): Windows 蓝牙设置深链 —— 设备连接页 banner 在 Windows 平台提供「打开蓝牙设置」按钮，调用 `Process.run('cmd', ['/c', 'start', 'ms-settings:bluetooth'])` 打开系统蓝牙设置；Android 提供「开启蓝牙」，iOS / macOS / Linux 提示去系统设置。
