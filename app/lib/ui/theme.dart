@@ -69,3 +69,63 @@ class HudStatus {
   static Color dangerOf(BuildContext context) =>
       Theme.of(context).colorScheme.error;
 }
+
+/// 动画时长与曲线 token。
+///
+/// 所有 UI 动画应引用此处的 token，避免散落硬编码 `Duration`/`Curves`。
+/// 参考 Material 3 motion 规范：
+///   - short: 180ms（微反馈，如按下缩放）
+///   - medium: 300ms（普通过渡，如透明度变化）
+///   - long: 460ms（强调动画，如卡片入场）
+///   - pageTransition: 360ms（页面级转场）
+///   - touch: 140ms（触摸反馈，比 short 略快）
+abstract final class AppAnim {
+  AppAnim._();
+
+  /// 动画时长 token。
+  static const durations = _Durations();
+
+  /// 动画曲线 token。
+  static const curves = _Curves();
+}
+
+class _Durations {
+  const _Durations();
+
+  /// 微反馈（180ms）
+  final Duration short = const Duration(milliseconds: 180);
+
+  /// 普通过渡（300ms）
+  final Duration medium = const Duration(milliseconds: 300);
+
+  /// 强调动画（460ms）
+  final Duration long = const Duration(milliseconds: 460);
+
+  /// 页面级转场（360ms）
+  final Duration pageTransition = const Duration(milliseconds: 360);
+
+  /// 触摸反馈（140ms，比 short 略快）
+  final Duration touch = const Duration(milliseconds: 140);
+}
+
+class _Curves {
+  const _Curves();
+
+  /// 减速进入：easeOutCubic（Material 3 emphasized）
+  final Curve emphasized = Curves.easeOutCubic;
+
+  /// 标准双向：easeInOutCubicEmphasized（Material 3 standard）
+  final Curve standard = Curves.easeInOutCubicEmphasized;
+
+  /// 减速：easeOut（旧称 decelerate）
+  final Curve decel = Curves.easeOut;
+
+  /// 弹性：easeOutBack（轻微回弹）
+  final Curve spring = Curves.easeOutBack;
+
+  /// 反向弹性：easeInBack（加速离开）
+  final Curve springReverse = Curves.easeInBack;
+
+  /// 加速离开：easeInCubic
+  final Curve accel = Curves.easeInCubic;
+}
