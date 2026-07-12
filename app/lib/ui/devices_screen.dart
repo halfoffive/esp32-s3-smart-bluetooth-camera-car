@@ -343,8 +343,8 @@ class _ScanButtonState extends State<_ScanButton> {
           : (_) => setState(() => _pressed = false),
       child: AnimatedScale(
         scale: _pressed && !widget.isScanning ? 0.96 : 1.0,
-        duration: const Duration(milliseconds: 100),
-        curve: Curves.easeOut,
+        duration: AppAnim.durations.touch,
+        curve: AppAnim.curves.spring,
         child: SizedBox(
           width: double.infinity,
           child: FilledButton.icon(
@@ -440,13 +440,14 @@ class _AnimatedListItemState extends State<_AnimatedListItem>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 400),
+      duration: AppAnim.durations.pageTransition,
     );
     _animation = CurvedAnimation(
       parent: _controller,
-      curve: Curves.easeOutCubic,
+      curve: AppAnim.curves.emphasized,
     );
-    Future.delayed(Duration(milliseconds: widget.index * 60), () {
+    // index ≥ 5 后停止 stagger 延迟，避免长列表后段进入过慢。
+    Future.delayed(Duration(milliseconds: (widget.index.clamp(0, 5)) * 60), () {
       if (mounted) _controller.forward();
     });
   }
@@ -463,7 +464,7 @@ class _AnimatedListItemState extends State<_AnimatedListItem>
       opacity: _animation,
       child: SlideTransition(
         position: Tween<Offset>(
-          begin: const Offset(0, 0.05),
+          begin: const Offset(0, 0.18),
           end: Offset.zero,
         ).animate(_animation),
         child: widget.child,
@@ -492,11 +493,11 @@ class _SlideInFromTopState extends State<_SlideInFromTop>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 300),
+      duration: AppAnim.durations.pageTransition,
     );
     _animation = CurvedAnimation(
       parent: _controller,
-      curve: Curves.easeOutCubic,
+      curve: AppAnim.curves.spring,
     );
     _controller.forward();
   }
@@ -511,12 +512,15 @@ class _SlideInFromTopState extends State<_SlideInFromTop>
   Widget build(BuildContext context) {
     return FadeTransition(
       opacity: _animation,
-      child: SlideTransition(
-        position: Tween<Offset>(
-          begin: const Offset(0, -0.1),
-          end: Offset.zero,
-        ).animate(_animation),
-        child: widget.child,
+      child: ScaleTransition(
+        scale: Tween<double>(begin: 0.96, end: 1.0).animate(_animation),
+        child: SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(0, -0.18),
+            end: Offset.zero,
+          ).animate(_animation),
+          child: widget.child,
+        ),
       ),
     );
   }
