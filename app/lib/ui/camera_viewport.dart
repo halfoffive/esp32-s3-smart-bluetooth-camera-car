@@ -124,25 +124,45 @@ class _FadeInDelayed extends StatefulWidget {
   State<_FadeInDelayed> createState() => _FadeInDelayedState();
 }
 
-class _FadeInDelayedState extends State<_FadeInDelayed> {
-  bool _visible = false;
+class _FadeInDelayedState extends State<_FadeInDelayed>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _animation;
 
   @override
   void initState() {
     super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: AppAnim.durations.pageTransition,
+    );
+    _animation = CurvedAnimation(
+      parent: _controller,
+      curve: AppAnim.curves.emphasized,
+    );
     // 按指定延迟触发淡入，形成错落出现效果
     Future.delayed(Duration(milliseconds: widget.delayMs), () {
-      if (mounted) setState(() => _visible = true);
+      if (mounted) _controller.forward();
     });
   }
 
   @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return AnimatedOpacity(
-      opacity: _visible ? 1.0 : 0.0,
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeOut,
-      child: widget.child,
+    return FadeTransition(
+      opacity: _animation,
+      child: SlideTransition(
+        position: Tween<Offset>(
+          begin: const Offset(0, 0.05),
+          end: Offset.zero,
+        ).animate(_animation),
+        child: widget.child,
+      ),
     );
   }
 }
@@ -222,7 +242,7 @@ class _HudOverlayState extends ConsumerState<_HudOverlay> {
 
           // 左上：连接状态
           _FadeInDelayed(
-            delayMs: 80,
+            delayMs: 100,
             child: Positioned(
               top: 10,
               left: 12,
@@ -236,7 +256,7 @@ class _HudOverlayState extends ConsumerState<_HudOverlay> {
 
           // 右上：FPS
           _FadeInDelayed(
-            delayMs: 160,
+            delayMs: 180,
             child: Positioned(
               top: 10,
               right: 12,
