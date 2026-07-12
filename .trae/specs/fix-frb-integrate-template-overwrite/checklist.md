@@ -1,5 +1,0 @@
-- [x] `.github/workflows/app.yml` 的 `Integrate flutter_rust_bridge (Android)` 步骤中，`integrate` 之后有 `git checkout -- lib/main.dart`
-- [x] 清理范围包含 `rust/src/api/simple.rs`、`lib/src/rust/api/simple.dart`、`integration_test/simple_test.dart`、`test_driver/integration_test.dart`
-- [x] 步骤注释说明了 `integrate` 会覆写 `lib/main.dart`
-- [x] `AGENTS.md` 包含 `integrate` 覆写 `lib/main.dart` 的陷阱说明
-- [x] `CHANGELOG.md` `[Unreleased]` 下有对应 Fixed 条目
