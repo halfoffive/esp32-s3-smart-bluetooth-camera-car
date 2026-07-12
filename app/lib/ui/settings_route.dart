@@ -5,6 +5,7 @@
 import 'package:flutter/material.dart';
 
 import 'settings_screen.dart';
+import 'theme.dart';
 
 /// 构建从底部向上滑入的设置页路由。
 Route<void> buildSettingsRoute() {
@@ -12,10 +13,12 @@ Route<void> buildSettingsRoute() {
     pageBuilder: (context, animation, secondaryAnimation) =>
         const SettingsScreen(),
     transitionsBuilder: (context, animation, secondaryAnimation, child) {
+      final isPop = animation.status == AnimationStatus.reverse;
+      final curve = isPop ? AppAnim.curves.accel : AppAnim.curves.emphasized;
       const begin = Offset(0.0, 1.0);
       const end = Offset.zero;
       final tween = Tween(begin: begin, end: end)
-          .chain(CurveTween(curve: Curves.easeInOutCubic));
+          .chain(CurveTween(curve: curve));
       final offsetAnimation = animation.drive(tween);
       return SlideTransition(
         position: offsetAnimation,
@@ -25,6 +28,6 @@ Route<void> buildSettingsRoute() {
         ),
       );
     },
-    transitionDuration: const Duration(milliseconds: 300),
+    transitionDuration: AppAnim.durations.pageTransition,
   );
 }
