@@ -8,6 +8,8 @@
 ## [Unreleased]
 
 ### Fixed
+- fix(ui): 修复设置页「保存」「下发到设备」按钮禁用状态在全平台显示不一致 —— 移除 `_AnimatedActionButton` 中 `AnimatedOpacity`/`AnimatedContainer` 的透明背景包装，改为直接对 `FilledButton.icon` 显式设置 `disabledBackgroundColor` (`onSurface@12%`) 与 `disabledForegroundColor` (`onSurface@38%`)，确保 Android / iOS / Windows / macOS / Linux 上文字与图标清晰可读。
+- fix(ble): 修复 Windows 端未开启蓝牙时 App 可能卡死 —— `BleController` 构造函数中对 `FlutterBluePlus.adapterState.listen(...)` 加 `try/catch`，捕获获取适配器状态流时的同步异常，回退为 `BluetoothAdapterState.unknown` 并通过 `errorMessage` 提示用户检查蓝牙；`startScan()` 中 `unknown` 分支文案改为「蓝牙未就绪，请检查系统蓝牙是否已开启」。
 - fix(ble): Windows 上蓝牙关闭或飞行模式时 `FlutterBluePlus.adapterState` 流抛异常导致 App 卡死/冻结 —— `BleController` 构造时注册 `onError`，回退为 `BluetoothAdapterState.unknown` 并中文提示用户；`DeviceConnectionScreen` 将 `unknown` 与 `off` 同等处理，顶部显示 `MaterialBanner`。
 - fix(ble): Android 权限请求流程加固 —— 新增 `BlePermissions.isNotDeclaredInManifest()` 启发式，当 `bluetoothScan` 与 `location` 同时 `permanentlyDenied` 时提示运行 `scripts/setup-android.sh` / `scripts/setup-android.ps1`；`DeviceConnectionScreen` 改为 `ConsumerStatefulWidget`，在 `initState` 的 `addPostFrameCallback` 中主动请求权限，避免首次进入设备页时 banner 提示滞后。
 - fix(ui): 将隐式动画替换为显式 `AnimationController` 避免掉帧 —— `joystick.dart` 摇杆按下动画改用 `AnimatedBuilder`；`devices_screen.dart` 列表项 stagger 与已连接卡片改用 `FadeTransition` + `SlideTransition`；`settings_screen.dart` 表单 stagger 改用显式 controller。

@@ -123,21 +123,30 @@ class BleController extends StateNotifier<BleState> {
   BleController() : super(const BleState()) {
     debugPrint('[BleController] constructed');
     // 监听系统蓝牙开关状态，用于扫描/连接前拦截并提示用户
-    _adapterSub = FlutterBluePlus.adapterState.listen(
-      (adapterState) {
-        _adapterState = adapterState;
-        // 同步到 BleState，让 UI 能响应式地显示/隐藏横幅
-        state = state.copyWith(adapterState: adapterState);
-      },
-      onError: (Object e) {
-        debugPrint('[BleController] adapterState error: $e');
-        _adapterState = BluetoothAdapterState.unknown;
-        state = state.copyWith(
-          adapterState: BluetoothAdapterState.unknown,
-          errorMessage: '蓝牙适配器状态获取失败，请检查蓝牙是否开启',
-        );
-      },
-    );
+    try {
+      _adapterSub = FlutterBluePlus.adapterState.listen(
+        (adapterState) {
+          _adapterState = adapterState;
+          // 同步到 BleState，让 UI 能响应式地显示/隐藏横幅
+          state = state.copyWith(adapterState: adapterState);
+        },
+        onError: (Object e) {
+          debugPrint('[BleController] adapterState error: $e');
+          _adapterState = BluetoothAdapterState.unknown;
+          state = state.copyWith(
+            adapterState: BluetoothAdapterState.unknown,
+            errorMessage: '蓝牙适配器状态获取失败，请检查蓝牙是否开启',
+          );
+        },
+      );
+    } catch (e) {
+      debugPrint('[BleController] adapterState setup error: $e');
+      _adapterState = BluetoothAdapterState.unknown;
+      state = state.copyWith(
+        adapterState: BluetoothAdapterState.unknown,
+        errorMessage: '蓝牙适配器状态获取失败，请检查蓝牙是否开启',
+      );
+    }
   }
 
   final FrameStreamAssembler _frameAssembler = FrameStreamAssembler();
@@ -217,7 +226,7 @@ class BleController extends StateNotifier<BleState> {
       state = state.copyWith(
         errorMessage: adapter == BluetoothAdapterState.off
             ? '蓝牙已关闭，请先开启蓝牙'
-            : '蓝牙未就绪，请检查蓝牙状态',
+            : '蓝牙未就绪，请检查系统蓝牙是否已开启',
       );
       return;
     }

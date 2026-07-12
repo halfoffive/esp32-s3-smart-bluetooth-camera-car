@@ -452,27 +452,19 @@ class _AnimatedActionButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return AnimatedOpacity(
-      opacity: enabled ? 1.0 : 0.62,
-      duration: const Duration(milliseconds: 200),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        decoration: BoxDecoration(
-          color: enabled
-              ? cs.primary
-              : cs.onSurface.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(100),
-        ),
-        child: FilledButton.icon(
-          onPressed: enabled ? onPressed : null,
-          icon: Icon(icon),
-          label: Text(label),
-          style: FilledButton.styleFrom(
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            backgroundColor: Colors.transparent,
-            disabledBackgroundColor: Colors.transparent,
-          ),
-        ),
+    return FilledButton.icon(
+      onPressed: enabled ? onPressed : null,
+      icon: Icon(icon),
+      label: Text(label),
+      style: FilledButton.styleFrom(
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        minimumSize: const Size.fromHeight(48),
+        backgroundColor:
+            enabled ? cs.primary : cs.onSurface.withValues(alpha: 0.12),
+        foregroundColor:
+            enabled ? cs.onPrimary : cs.onSurface.withValues(alpha: 0.38),
+        disabledBackgroundColor: cs.onSurface.withValues(alpha: 0.12),
+        disabledForegroundColor: cs.onSurface.withValues(alpha: 0.38),
       ),
     );
   }
